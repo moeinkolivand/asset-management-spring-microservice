@@ -3,6 +3,7 @@ package com.tutorial.user.user;
 import com.tutorial.user.user.jwt.JwtService;
 import jakarta.persistence.EntityExistsException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -17,18 +18,22 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate;
+
 
     @Autowired
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            AuthenticationManager authenticationManager
+            AuthenticationManager authenticationManager, KafkaTemplate<String, UserRegisteredEvent> kafkaTemplate
+
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
+        this.kafkaTemplate = kafkaTemplate;
     }
 
     @Transactional
@@ -44,8 +49,15 @@ public class AuthService {
         );
 
         userRepository.save(user);
-        // TODO:  Publish Event To Create Default User Wallet
-//        walletRespository.createWallet("USDT", BigDecimal.ZERO, user.getId(), currencyApi.getReferenceById(1L));
+        kafkaTemplate.send(
+                "user-registered-topic",
+                user.getId().toString(),
+                new UserRegisteredEvent(
+                        user.getId(),
+                        user.getPhoneNumber(),
+                        user.getUserRole().name()
+                )
+        );
         String token = jwtService.generateToken(user);
         return new AuthResponseDto(token, user.getPhoneNumber(), user.getUserRole().name());
     }
