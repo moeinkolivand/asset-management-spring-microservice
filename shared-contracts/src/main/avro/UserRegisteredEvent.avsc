@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "UserRegisteredEvent",
+  "namespace": "com.tutorial.shared.user.events",
+  "fields": [
+    { "name": "userId", "type": "long" },
+    { "name": "phoneNumber", "type": "string" },
+    { "name": "role", "type": "string"}
+  ]
+}
