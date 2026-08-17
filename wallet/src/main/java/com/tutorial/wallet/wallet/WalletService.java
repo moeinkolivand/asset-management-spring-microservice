@@ -69,4 +69,7 @@ public class WalletService {
         return walletRepository.findByUserId(userId).stream().map(this::returnWalletResponse).toList();
     }
 
+    public void createDefaultWallet(Long userId) {
+        walletRepository.save(new Wallet("USDT", BigDecimal.ZERO, userId, 1L));
+    }
 }
