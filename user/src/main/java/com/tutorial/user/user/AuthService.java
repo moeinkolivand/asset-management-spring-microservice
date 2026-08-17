@@ -1,5 +1,5 @@
 package com.tutorial.user.user;
-
+import com.tutorial.shared.user.events.UserRegisteredEvent;
 import com.tutorial.user.user.jwt.JwtService;
 import jakarta.persistence.EntityExistsException;
 import org.springframework.beans.factory.annotation.Autowired;
