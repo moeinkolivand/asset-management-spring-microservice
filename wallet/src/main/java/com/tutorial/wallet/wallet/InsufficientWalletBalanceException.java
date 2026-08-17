@@ -1,4 +1,4 @@
-package com.example.demo.wallet;
+package com.tutorial.wallet.wallet;
 
 public class InsufficientWalletBalanceException extends RuntimeException {
     public InsufficientWalletBalanceException(String message) {
