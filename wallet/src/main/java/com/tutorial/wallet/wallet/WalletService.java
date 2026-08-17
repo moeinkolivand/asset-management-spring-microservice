@@ -70,6 +70,6 @@ public class WalletService {
     }
 
     public void createDefaultWallet(Long userId) {
-        walletRepository.save(new Wallet("USDT", BigDecimal.ZERO, userId, 1L));
+        walletRepository.save(new Wallet(String.format("USDT-%d", userId), BigDecimal.ZERO, userId, 1L));
     }
 }
