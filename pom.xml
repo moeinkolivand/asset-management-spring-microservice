@@ -110,10 +110,12 @@
     <!-- MICROSERVICE MODULES -->
     <modules>
         <module>shared-contracts</module>
+        <module>shared-module</module>
         <module>eureka</module>
         <module>gateway</module>
         <module>user</module>
         <module>wallet</module>
+        <module>transaction</module>
     </modules>
 
     <build>
