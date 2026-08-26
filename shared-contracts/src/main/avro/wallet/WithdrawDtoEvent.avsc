@@ -1,0 +1,24 @@
+{
+  "type": "record",
+  "name": "WithdrawDtoEvent",
+  "namespace": "com.tutorial.shared.wallet.events",
+  "fields": [
+    {
+      "name": "userId",
+      "type": "long"
+    },
+    {
+      "name": "currencyId",
+      "type": "long"
+    },
+    {
+      "name": "amount",
+      "type": "string"
+    },
+    {
+      "name": "idempotencyKey",
+      "type": "string"
+    }
+
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "type": "record",
+  "name": "WithdrawFailedDtoEvent",
+  "namespace": "com.tutorial.shared.wallet.events",
+  "fields": [
+    {
+      "name": "userId",
+      "type": "long"
+    },
+    {
+      "name": "currencyId",
+      "type": "long"
+    },
+    {
+      "name": "amount",
+      "type": "string"
+    },
+    {
+      "name": "idempotencyKey",
+      "type": "string"
+    },
+    {
+      "name": "failedReason",
+      "type": "string"
+    },
+    {
+      "name": "failedEnum",
+      "type": "int"
+    }
+  ]
+}
