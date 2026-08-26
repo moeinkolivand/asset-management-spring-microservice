@@ -14,8 +14,18 @@ spring:
               uri: lb://USER-SERVICE
               predicates:
                 - Path=/api/auth/**
-
+            - id: transaction-route
+              uri: lb://TRANSACTION-SERVICE
+              predicates:
+                - Path=/api/transaction/**
 
 jwt:
   secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
   access-expiration: 604800000
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+    export:
+      enabled: true
