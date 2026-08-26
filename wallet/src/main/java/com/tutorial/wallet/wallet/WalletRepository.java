@@ -19,4 +19,6 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     Optional<Wallet> findByIdForUpdate(@Param("id") Long id);
 
     Optional<Wallet> findByUserIdAndCurrencyId(Long userId, Long currencyId);
+
+    Optional<Wallet> findByCurrencyIdAndUserId(Long currencyId, Long user);
 }
