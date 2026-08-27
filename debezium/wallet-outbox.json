@@ -1,0 +1,28 @@
+{
+  "name": "wallet-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "database.hostname": "spring_database_wallet",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "demo_db",
+    "plugin.name": "pgoutput",
+    "topic.prefix": "wallet",
+    "table.include.list": "public.outbox_events",
+    "slot.name": "wallet_outbox_slot",
+    "publication.name": "wallet_outbox_publication",
+    "publication.autocreate.mode": "filtered",
+    "snapshot.mode": "initial",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "topic",
+    "transforms.outbox.route.topic.replacement": "${routedByValue}",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "transforms.outbox.table.fields.additional.placement": "event_type:header:eventType",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.converters.ByteArrayConverter"
+  }
+}
