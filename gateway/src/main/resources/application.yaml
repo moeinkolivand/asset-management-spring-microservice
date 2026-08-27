@@ -29,3 +29,14 @@ management:
       probability: 1.0
     export:
       enabled: true
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: http://localhost:4318/v1/traces
+          transport: http
+
+
+#  management.opentelemetry.tracing.export.otlp.enabled=true
+#  management.opentelemetry.tracing.export.otlp.endpoint=http://localhost:4318
+#  management.opentelemetry.tracing.export.otlp.transport=http
