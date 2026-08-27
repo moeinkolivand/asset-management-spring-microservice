@@ -1,18 +1,13 @@
 package com.tutorial.wallet.wallet;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tutorial.sharedmodule.infra.KafkaTopics;
+import com.tutorial.sharedmodule.infra.avro.AvroPayloadSerializer;
 import com.tutorial.sharedmodule.infra.outbox.OutBox;
 import com.tutorial.shared.wallet.events.*;
 import com.tutorial.sharedmodule.infra.outbox.OutBoxRepository;
 import com.tutorial.wallet.wallet.dto.*;
 import com.tutorial.wallet.currency.CurrencyApiImpl;
 import jakarta.persistence.EntityNotFoundException;
-import org.apache.avro.io.BinaryEncoder;
-import org.apache.avro.io.DatumWriter;
-import org.apache.avro.io.EncoderFactory;
-import org.apache.avro.specific.SpecificDatumWriter;
-import org.apache.avro.specific.SpecificRecordBase;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,8 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -35,16 +28,14 @@ public class WalletService {
   private final CurrencyApiImpl currencyApi;
   private final TransactionTemplate transactionTemplate;
   private final OutBoxRepository outBoxRepository;
-  private final ObjectMapper objectMapper;
+  private final AvroPayloadSerializer avroSerializer;
 
   @Value("app.wallet.outbox.aggregate-type")
   private String aggregateType;
 
-  @Value("app.wallet.outbox.withdraw.success-topic")
-  private String successTopic;
+  private final String successTopic = KafkaTopics.WITHDRAW_SUCCESS;
 
-  @Value("app.wallet.outbox.withdraw.failed-topic")
-  private String failedTopic;
+  private final String failedTopic = KafkaTopics.WITHDRAW_FAILED;
 
   @Autowired
   public WalletService(
@@ -52,12 +43,12 @@ public class WalletService {
       CurrencyApiImpl currencyApi,
       TransactionTemplate transactionTemplate,
       OutBoxRepository outBoxRepository,
-      ObjectMapper objectMapper) {
+      AvroPayloadSerializer avroSerializer) {
     this.walletRepository = walletRepository;
     this.currencyApi = currencyApi;
     this.transactionTemplate = transactionTemplate;
     this.outBoxRepository = outBoxRepository;
-    this.objectMapper = objectMapper;
+    this.avroSerializer = avroSerializer;
   }
 
   private record WithdrawalWallets(Wallet userWallet, Wallet systemWallet) {}
@@ -210,13 +201,13 @@ public class WalletService {
 
   private void saveFailedOutboxEvent(
       String eventType, String aggregateId, WithdrawFailedDtoEvent payload) {
-    byte[] payloadBytes = convertPayloadToBye(payload);
+    byte[] payloadBytes = avroSerializer.serialize(failedTopic, payload);
     saveOutBox(eventType, aggregateId, payloadBytes, failedTopic);
   }
 
   private void saveSuccessOutboxEvent(
       String eventType, String aggregateId, WithdrawSuccessDtoEvent payload) {
-    byte[] payloadBytes = convertPayloadToBye(payload);
+    byte[] payloadBytes = avroSerializer.serialize(successTopic, payload);
     saveOutBox(eventType, aggregateId, payloadBytes, successTopic);
   }
 
@@ -228,35 +219,6 @@ public class WalletService {
     outboxEvent.setTopic(topic);
     outboxEvent.setPayload(payload);
     outBoxRepository.save(outboxEvent);
-  }
-
-  private byte[] convertPayloadToBye(SpecificRecordBase payload) {
-    try {
-      ByteArrayOutputStream out = new ByteArrayOutputStream();
-      DatumWriter<SpecificRecordBase> writer = new SpecificDatumWriter<>(payload.getSchema());
-      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
-      writer.write(payload, encoder);
-      encoder.flush();
-      return out.toByteArray();
-    } catch (IOException e) {
-      // Don't swallow — a payload that can't be serialized should never
-      // silently become an empty-byte row in the outbox.
-      //      throw new OutboxSerializationException("Failed to serialize outbox payload for event",
-      // e);
-      System.out.println("e.getMessage() = " + e.getMessage());
-    }
-    byte[] bytes = new byte[0];
-    return bytes;
-  }
-
-  private byte[] convertPayloadToBye(Object payload) {
-    byte[] bytedPayload = new byte[0];
-    try {
-      bytedPayload = objectMapper.writeValueAsBytes(payload);
-    } catch (JsonProcessingException ignored) {
-      System.out.println("parsing object problem: " + ignored.getMessage());
-    }
-    return bytedPayload;
   }
 
   private WithdrawSuccessDtoEvent buildSuccessEvent(WithdrawDtoEvent event) {
