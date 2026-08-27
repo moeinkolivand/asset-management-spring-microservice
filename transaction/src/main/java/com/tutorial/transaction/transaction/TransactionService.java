@@ -1,6 +1,7 @@
 package com.tutorial.transaction.transaction;
 
 import com.tutorial.shared.wallet.events.WithdrawDtoEvent;
+import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.transaction.transaction.ledger.LedgerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -38,7 +39,7 @@ public class TransactionService {
               throw new TransactionAlreadyProccesedException("Already processed");
             });
     kafkaTemplate.send(
-        "wallet-withdraw",
+        KafkaTopics.WITHDRAW_REQUESTED,
         WithdrawDtoEvent.newBuilder()
             .setAmount(withdrawDto.amount().toString())
             .setIdempotencyKey(withdrawDto.idempotencyKey().toString())
