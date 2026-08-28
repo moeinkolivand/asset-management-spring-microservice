@@ -42,7 +42,7 @@ public class TransactionController {
     public ResponseEntity<Page<Transaction>> getUserTransactions(
             @RequestHeader("X-User-Id") Long userId,
             @PageableDefault(
-                    size = 10, sort = "created_at", direction = Sort.Direction.DESC
+                    size = 10, sort = "createdAt", direction = Sort.Direction.DESC
             ) Pageable pageable){
         return ResponseEntity.ok(transactionService.getUserTransactions(userId, pageable));
     }

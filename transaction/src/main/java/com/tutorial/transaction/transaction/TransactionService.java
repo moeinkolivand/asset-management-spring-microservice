@@ -94,7 +94,7 @@ public class TransactionService {
     Pageable newPageable =
         PageRequest.of(
             pageable.getPageNumber(), pageable.getPageSize(), pageable.getSort().descending());
-    return transactionRepository.findAllByUser(user, newPageable);
+    return transactionRepository.findAllByUserId(user, newPageable);
   }
 
   public void failedWithdraw(WithdrawFailedDtoEvent dtoEvent) {
