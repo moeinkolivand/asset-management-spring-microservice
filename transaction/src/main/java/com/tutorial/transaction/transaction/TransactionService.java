@@ -2,6 +2,7 @@ package com.tutorial.transaction.transaction;
 
 import com.tutorial.shared.wallet.events.WithdrawDtoEvent;
 import com.tutorial.shared.wallet.events.WithdrawFailedDtoEvent;
+import com.tutorial.shared.wallet.events.WithdrawSuccessDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.transaction.transaction.ledger.LedgerService;
 import jakarta.persistence.EntityNotFoundException;
@@ -13,6 +14,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -60,6 +62,15 @@ public class TransactionService {
             ""));
   }
 
+  private Transaction getTransactionByIdempotencyKey(UUID idempotencyKey) {
+    return transactionRepository
+        .findByIdempotencyKey(idempotencyKey)
+        .orElseThrow(
+            () ->
+                new EntityNotFoundException(
+                    "transaction with uuid " + idempotencyKey + " not found"));
+  }
+
   public void deposit(DepositDto depositDto, Long user) {
     transactionRepository
         .findByIdempotencyKey(depositDto.idempotencyKey())
@@ -99,15 +110,18 @@ public class TransactionService {
 
   public void failedWithdraw(WithdrawFailedDtoEvent dtoEvent) {
     Transaction transaction =
-        transactionRepository
-            .findByIdempotencyKey(UUID.fromString(dtoEvent.getIdempotencyKey()))
-            .orElseThrow(
-                () ->
-                    new EntityNotFoundException(
-                        "transaction with uuid " + dtoEvent.getIdempotencyKey() + "not found"));
+        getTransactionByIdempotencyKey(UUID.fromString(dtoEvent.getIdempotencyKey()));
     transaction.setFailedReason(dtoEvent.getFailedReason());
     transaction.setStatus(TransactionStatus.FAILED);
     transactionRepository.save(transaction);
     System.out.println("transaction with uuid " + dtoEvent.getIdempotencyKey() + "proccesed");
+  }
+
+  public void successWithdraw(WithdrawSuccessDtoEvent dtoEvent) {
+    Transaction transaction =
+        getTransactionByIdempotencyKey(UUID.fromString(dtoEvent.getIdempotencyKey()));
+
+    ledgerService.createDebit(transaction, dtoEvent.getSystemWalletId(), new BigDecimal(dtoEvent.getAmount()));
+    ledgerService.createCredit(transaction, dtoEvent.getUserWalletId(), new BigDecimal(dtoEvent.getAmount()));
   }
 }

@@ -16,6 +16,14 @@
       "type": "string"
     },
     {
+      "name": "userWalletId",
+      "type": "long"
+    },
+    {
+      "name": "systemWalletId",
+      "type": "long"
+    },
+    {
       "name": "idempotencyKey",
       "type": "string"
     }

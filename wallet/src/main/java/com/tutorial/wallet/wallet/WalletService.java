@@ -169,7 +169,8 @@ public class WalletService {
                     .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
             userWallet.setBalance(userWallet.getBalance().subtract(bigDecimalAmount));
             systemWallet.setBalance(systemWallet.getBalance().add(bigDecimalAmount));
-            WithdrawSuccessDtoEvent withdrawSuccessDtoEvent = buildSuccessEvent(withdrawDtoEvent);
+            WithdrawSuccessDtoEvent withdrawSuccessDtoEvent =
+                buildSuccessEvent(withdrawDtoEvent, userWallet.getId(), systemWallet.getId());
             saveSuccessOutboxEvent(
                 "withdraw", withdrawSuccessDtoEvent.getIdempotencyKey(), withdrawSuccessDtoEvent);
             return null;
@@ -221,12 +222,15 @@ public class WalletService {
     outBoxRepository.save(outboxEvent);
   }
 
-  private WithdrawSuccessDtoEvent buildSuccessEvent(WithdrawDtoEvent event) {
+  private WithdrawSuccessDtoEvent buildSuccessEvent(
+      WithdrawDtoEvent event, Long userWalletId, Long systemWalletId) {
     return WithdrawSuccessDtoEvent.newBuilder()
         .setUserId(event.getUserId())
         .setCurrencyId(event.getCurrencyId())
         .setAmount(event.getAmount())
         .setIdempotencyKey(event.getIdempotencyKey())
+        .setUserWalletId(userWalletId)
+        .setSystemWalletId(systemWalletId)
         .build();
   }
 

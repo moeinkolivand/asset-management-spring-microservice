@@ -46,9 +46,10 @@ public class Wallet {
     @Column(name = "currency_id", nullable = false)
     private Long currencyId;
 
+    @Column(nullable = false)
     @ColumnDefault("'ACTIVE'")
     @Enumerated(EnumType.STRING)
-    private WalletStatus walletStatus;
+    private WalletStatus walletStatus = WalletStatus.ACTIVE;
 
 
     public Wallet() {
