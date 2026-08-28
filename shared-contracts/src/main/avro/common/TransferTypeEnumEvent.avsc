@@ -1,0 +1,9 @@
+{
+  "type": "enum",
+  "name": "TransferTypeEnumEvent",
+  "namespace": "com.tutorial.shared.common.avro",
+  "symbols": [
+    "WITHDRAW",
+    "DEPOSIT"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "type": "enum",
+  "name": "TransferResultEnum",
+  "namespace": "com.tutorial.shared.common.avro",
+  "symbols": [
+    "SUCCESS",
+    "FAILED"
+  ]
+}

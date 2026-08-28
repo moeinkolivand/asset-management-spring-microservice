@@ -22,19 +22,9 @@ public class TransactionController {
     @PostMapping("withdraw")
     public ResponseEntity<String> withdraw(
             @RequestHeader("X-User-Id") Long userId,
-            @Valid @RequestBody WithdrawDto withdrawDto
+            @Valid @RequestBody TransferDto transferDto
     ) {
-        transactionService.withdraw(withdrawDto, userId);
-        return ResponseEntity.ok("");
-    }
-
-
-    @PostMapping("deposit")
-    public ResponseEntity<String> deposit(
-            @RequestHeader("X-User-Id") Long userId,
-            @Valid @RequestBody DepositDto depositDto
-    ) {
-        transactionService.deposit(depositDto, userId);
+        transactionService.transfer(transferDto, userId);
         return ResponseEntity.ok("");
     }
 

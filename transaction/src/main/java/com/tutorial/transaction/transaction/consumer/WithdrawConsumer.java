@@ -1,7 +1,6 @@
 package com.tutorial.transaction.transaction.consumer;
 
-import com.tutorial.shared.wallet.events.WithdrawFailedDtoEvent;
-import com.tutorial.shared.wallet.events.WithdrawSuccessDtoEvent;
+import com.tutorial.shared.wallet.events.WithdrawResultDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.transaction.transaction.TransactionService;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -15,13 +14,8 @@ public class WithdrawConsumer {
         this.transactionService = transactionService;
     }
 
-    @KafkaListener(topics = KafkaTopics.WITHDRAW_FAILED, groupId = "transaction-group")
-    private void failedWithdrawConsumer(WithdrawFailedDtoEvent dtoEvent) {
-        transactionService.failedWithdraw(dtoEvent);
-    }
-
-    @KafkaListener(topics = KafkaTopics.WITHDRAW_SUCCESS, groupId = "transaction-group")
-    private void failedWithdrawConsumer(WithdrawSuccessDtoEvent dtoEvent) {
-        transactionService.successWithdraw(dtoEvent);
+    @KafkaListener(topics = KafkaTopics.WALLET_TRANSFER_RESPONSE, groupId = "transaction-group")
+    private void handleWalletTransferResponseEvent(WithdrawResultDtoEvent dtoEvent) {
+        transactionService.processWalletTransferEvent(dtoEvent);
     }
 }

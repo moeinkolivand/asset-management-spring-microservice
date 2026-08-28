@@ -1,6 +1,6 @@
 package com.tutorial.wallet.wallet.consumer;
 
-import com.tutorial.shared.wallet.events.WithdrawDtoEvent;
+import com.tutorial.shared.wallet.events.TransferDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.wallet.wallet.WalletService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,8 +16,8 @@ public class WithdrawConsumer {
     this.walletService = walletService;
   }
 
-  @KafkaListener(topics = KafkaTopics.WITHDRAW_REQUESTED, groupId = "wallet-group")
-  public void withdrawHandler(WithdrawDtoEvent withdrawDtoEvent) {
+  @KafkaListener(topics = KafkaTopics.WALLET_TRANSFER, groupId = "wallet-group")
+  public void withdrawHandler(TransferDtoEvent withdrawDtoEvent) {
     walletService.withdraw(withdrawDtoEvent);
   }
 }

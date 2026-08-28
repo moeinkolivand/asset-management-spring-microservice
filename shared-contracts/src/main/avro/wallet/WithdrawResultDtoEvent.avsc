@@ -1,0 +1,51 @@
+{
+  "type": "record",
+  "name": "WithdrawResultDtoEvent",
+  "namespace": "com.tutorial.shared.wallet.events",
+  "fields": [
+    {
+      "name": "userId",
+      "type": "long"
+    },
+    {
+      "name": "currencyId",
+      "type": "long"
+    },
+    {
+      "name": "amount",
+      "type": "string"
+    },
+    {
+      "name": "userWalletId",
+      "type": ["null", "long"],
+      "default": null
+    },
+    {
+      "name": "systemWalletId",
+      "type": ["null", "long"],
+      "default": null
+    },
+    {
+      "name": "idempotencyKey",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "com.tutorial.shared.common.avro.TransferResultEnum"
+    },
+    {
+      "name": "failedReason",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
+      "name": "failedEnum",
+      "type": ["null", "int"],
+      "default": null
+    },
+    {
+      "name": "transferType",
+      "type": "com.tutorial.shared.common.avro.TransferTypeEnumEvent"
+    }
+  ]
+}

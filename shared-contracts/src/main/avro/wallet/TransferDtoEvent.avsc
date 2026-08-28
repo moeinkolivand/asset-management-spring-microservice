@@ -1,6 +1,6 @@
 {
   "type": "record",
-  "name": "WithdrawSuccessDtoEvent",
+  "name": "TransferDtoEvent",
   "namespace": "com.tutorial.shared.wallet.events",
   "fields": [
     {
@@ -16,16 +16,12 @@
       "type": "string"
     },
     {
-      "name": "userWalletId",
-      "type": "long"
-    },
-    {
-      "name": "systemWalletId",
-      "type": "long"
-    },
-    {
       "name": "idempotencyKey",
       "type": "string"
+    },
+    {
+      "name": "transferType",
+      "type": "com.tutorial.shared.common.avro.TransferTypeEnumEvent"
     }
   ]
 }

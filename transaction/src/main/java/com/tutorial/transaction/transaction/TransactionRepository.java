@@ -12,4 +12,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Optional<Transaction> findByIdempotencyKey(@NotBlank(message = "idempotencyKey is required") UUID uuid);
 
     Page<Transaction> findAllByUserId(Long userId, Pageable pageable);
+
+    boolean existsByIdempotencyKey(UUID idempotencyKey);
 }

@@ -1,9 +1,11 @@
 package com.tutorial.wallet.wallet;
 
+import com.tutorial.shared.common.avro.TransferResultEnum;
+import com.tutorial.shared.wallet.events.TransferDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.sharedmodule.infra.avro.AvroPayloadSerializer;
 import com.tutorial.sharedmodule.infra.outbox.OutBox;
-import com.tutorial.shared.wallet.events.*;
+import com.tutorial.shared.wallet.events.WithdrawResultDtoEvent;
 import com.tutorial.sharedmodule.infra.outbox.OutBoxRepository;
 import com.tutorial.wallet.wallet.dto.*;
 import com.tutorial.wallet.currency.CurrencyApiImpl;
@@ -33,9 +35,7 @@ public class WalletService {
   @Value("app.wallet.outbox.aggregate-type")
   private String aggregateType;
 
-  private final String successTopic = KafkaTopics.WITHDRAW_SUCCESS;
-
-  private final String failedTopic = KafkaTopics.WITHDRAW_FAILED;
+  private final String walletTransferResponse = KafkaTopics.WALLET_TRANSFER_RESPONSE;
 
   @Autowired
   public WalletService(
@@ -134,22 +134,22 @@ public class WalletService {
     return new WithdrawalWallets(userWallet, systemWallet);
   }
 
-  public void withdraw(WithdrawDtoEvent withdrawDtoEvent) {
+  public void withdraw(TransferDtoEvent withdrawDtoEvent) {
     final WithdrawalWallets withdrawalWallets;
     try {
       withdrawalWallets =
           resolveAndValidate(withdrawDtoEvent.getCurrencyId(), withdrawDtoEvent.getUserId());
     } catch (ForbiddenActionOnFreezeWalletException e) {
-      WithdrawFailedDtoEvent withdrawFailedDtoEvent =
+      WithdrawResultDtoEvent WithdrawResultDtoEvent =
           buildFailureEvent(withdrawDtoEvent, e.getMessage(), 0);
       saveFailedOutboxEvent(
-          "withdraw", withdrawDtoEvent.getIdempotencyKey(), withdrawFailedDtoEvent);
+          "withdraw", withdrawDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
       throw e;
     } catch (EntityNotFoundException e) {
-      WithdrawFailedDtoEvent withdrawFailedDtoEvent =
+      WithdrawResultDtoEvent WithdrawResultDtoEvent =
           buildFailureEvent(withdrawDtoEvent, e.getMessage(), 1);
       saveFailedOutboxEvent(
-          "withdraw", withdrawDtoEvent.getIdempotencyKey(), withdrawFailedDtoEvent);
+          "withdraw", withdrawDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
       throw e;
     }
     BigDecimal bigDecimalAmount = new BigDecimal(withdrawDtoEvent.getAmount());
@@ -169,22 +169,22 @@ public class WalletService {
                     .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
             userWallet.setBalance(userWallet.getBalance().subtract(bigDecimalAmount));
             systemWallet.setBalance(systemWallet.getBalance().add(bigDecimalAmount));
-            WithdrawSuccessDtoEvent withdrawSuccessDtoEvent =
+            WithdrawResultDtoEvent withdrawSuccessDtoEvent =
                 buildSuccessEvent(withdrawDtoEvent, userWallet.getId(), systemWallet.getId());
             saveSuccessOutboxEvent(
                 "withdraw", withdrawSuccessDtoEvent.getIdempotencyKey(), withdrawSuccessDtoEvent);
             return null;
           });
     } catch (EntityNotFoundException e) {
-      WithdrawFailedDtoEvent withdrawFailedDtoEvent =
+      WithdrawResultDtoEvent WithdrawResultDtoEvent =
           buildFailureEvent(withdrawDtoEvent, e.getMessage(), 3);
       saveFailedOutboxEvent(
-          "withdraw", withdrawFailedDtoEvent.getIdempotencyKey(), withdrawFailedDtoEvent);
+          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
     } catch (InsufficientWalletBalanceException e) {
-      WithdrawFailedDtoEvent withdrawFailedDtoEvent =
+      WithdrawResultDtoEvent WithdrawResultDtoEvent =
           buildFailureEvent(withdrawDtoEvent, e.getMessage(), 4);
       saveFailedOutboxEvent(
-          "withdraw", withdrawFailedDtoEvent.getIdempotencyKey(), withdrawFailedDtoEvent);
+          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
     } catch (TransientDataAccessException e) {
       System.out.println(
           "Transient DB failure on withdraw, will retry: {}"
@@ -192,24 +192,24 @@ public class WalletService {
               + e.getMessage());
       throw e;
     } catch (DataAccessException e) {
-      WithdrawFailedDtoEvent withdrawFailedDtoEvent =
+      WithdrawResultDtoEvent WithdrawResultDtoEvent =
           buildFailureEvent(withdrawDtoEvent, "something wrong is happen", 5);
       saveFailedOutboxEvent(
-          "withdraw", withdrawFailedDtoEvent.getIdempotencyKey(), withdrawFailedDtoEvent);
+          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
       throw e;
     }
   }
 
   private void saveFailedOutboxEvent(
-      String eventType, String aggregateId, WithdrawFailedDtoEvent payload) {
-    byte[] payloadBytes = avroSerializer.serialize(failedTopic, payload);
-    saveOutBox(eventType, aggregateId, payloadBytes, failedTopic);
+      String eventType, String aggregateId, WithdrawResultDtoEvent payload) {
+    byte[] payloadBytes = avroSerializer.serialize(walletTransferResponse, payload);
+    saveOutBox(eventType, aggregateId, payloadBytes, walletTransferResponse);
   }
 
   private void saveSuccessOutboxEvent(
-      String eventType, String aggregateId, WithdrawSuccessDtoEvent payload) {
-    byte[] payloadBytes = avroSerializer.serialize(successTopic, payload);
-    saveOutBox(eventType, aggregateId, payloadBytes, successTopic);
+      String eventType, String aggregateId, WithdrawResultDtoEvent payload) {
+    byte[] payloadBytes = avroSerializer.serialize(walletTransferResponse, payload);
+    saveOutBox(eventType, aggregateId, payloadBytes, walletTransferResponse);
   }
 
   private void saveOutBox(String eventType, String aggregateId, byte[] payload, String topic) {
@@ -222,27 +222,31 @@ public class WalletService {
     outBoxRepository.save(outboxEvent);
   }
 
-  private WithdrawSuccessDtoEvent buildSuccessEvent(
-      WithdrawDtoEvent event, Long userWalletId, Long systemWalletId) {
-    return WithdrawSuccessDtoEvent.newBuilder()
+  private WithdrawResultDtoEvent buildSuccessEvent(
+      TransferDtoEvent event, Long userWalletId, Long systemWalletId) {
+    return WithdrawResultDtoEvent.newBuilder()
         .setUserId(event.getUserId())
         .setCurrencyId(event.getCurrencyId())
         .setAmount(event.getAmount())
         .setIdempotencyKey(event.getIdempotencyKey())
         .setUserWalletId(userWalletId)
         .setSystemWalletId(systemWalletId)
+        .setStatus(TransferResultEnum.SUCCESS)
+        .setTransferType(event.getTransferType())
         .build();
   }
 
-  private WithdrawFailedDtoEvent buildFailureEvent(
-      WithdrawDtoEvent event, String reason, int failedEnum) {
-    return WithdrawFailedDtoEvent.newBuilder()
+  private WithdrawResultDtoEvent buildFailureEvent(
+      TransferDtoEvent event, String reason, int failedEnum) {
+    return WithdrawResultDtoEvent.newBuilder()
         .setUserId(event.getUserId())
         .setCurrencyId(event.getCurrencyId())
         .setIdempotencyKey(event.getIdempotencyKey())
         .setAmount(event.getAmount())
         .setFailedReason(reason)
         .setFailedEnum(failedEnum)
+        .setStatus(TransferResultEnum.FAILED)
+        .setTransferType(event.getTransferType())
         .build();
   }
 }
