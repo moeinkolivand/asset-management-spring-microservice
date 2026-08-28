@@ -7,7 +7,19 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 @Entity
-@Table(name = "ledger_entries")
+@Table(
+        name = "ledger_entries",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_ledger_transaction_wallet_direction",
+                        columnNames = {
+                                "transaction_id",
+                                "wallet_id",
+                                "ledger_entry_direction_enum"
+                        }
+                )
+        }
+)
 public class LedgerEntry {
 
     @Id

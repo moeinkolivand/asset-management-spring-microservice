@@ -79,43 +79,34 @@ public class TransactionService {
   }
 
   @Transactional
-  public void failedWithdraw(WithdrawResultDtoEvent dtoEvent) {
+  public void processWalletTransferEvent(WithdrawResultDtoEvent event) {
+
     Transaction transaction =
-        getTransactionByIdempotencyKey(UUID.fromString(dtoEvent.getIdempotencyKey()));
-    transaction.setFailedReason(dtoEvent.getFailedReason());
-    transaction.setStatus(TransactionStatus.FAILED);
-    transactionRepository.save(transaction);
-    System.out.println("transaction with uuid " + dtoEvent.getIdempotencyKey() + "proccesed");
+        getTransactionByIdempotencyKey(UUID.fromString(event.getIdempotencyKey()));
+
+    if (transaction.getStatus() != TransactionStatus.PENDING) {
+      return;
+    }
+
+    switch (event.getStatus()) {
+      case SUCCESS -> completeTransaction(event, transaction);
+      case FAILED -> failTransaction(event, transaction);
+    }
   }
 
-  @Transactional
-  public void successWithdraw(WithdrawResultDtoEvent dtoEvent) {
-    Transaction transaction =
-        getTransactionByIdempotencyKey(UUID.fromString(dtoEvent.getIdempotencyKey()));
+  private void completeTransaction(WithdrawResultDtoEvent event, Transaction transaction) {
+    ledgerService.applyTransfer(
+        transaction,
+        event.getTransferType(),
+        event.getUserWalletId(),
+        event.getSystemWalletId(),
+        new BigDecimal(event.getAmount()));
 
-    ledgerService.createDebit(
-        transaction, dtoEvent.getSystemWalletId(), new BigDecimal(dtoEvent.getAmount()));
-    ledgerService.createCredit(
-        transaction, dtoEvent.getUserWalletId(), new BigDecimal(dtoEvent.getAmount()));
     transaction.setStatus(TransactionStatus.COMPLETED);
-    transactionRepository.save(transaction);
   }
 
-  public void processWalletTransferEvent(WithdrawResultDtoEvent dtoEvent) {
-    switch (dtoEvent.getTransferType()) {
-      case DEPOSIT -> handleDeposit(dtoEvent);
-      case WITHDRAW -> handleWithdraw(dtoEvent);
-    }
-  }
-
-  private void handleWithdraw(WithdrawResultDtoEvent dtoEvent) {
-    switch (dtoEvent.getStatus()) {
-      case SUCCESS -> successWithdraw(dtoEvent);
-      case FAILED -> failedWithdraw(dtoEvent);
-    }
-  }
-
-  private void handleDeposit(WithdrawResultDtoEvent dtoEvent) {
-
+  private void failTransaction(WithdrawResultDtoEvent event, Transaction transaction) {
+    transaction.setFailedReason(event.getFailedReason());
+    transaction.setStatus(TransactionStatus.FAILED);
   }
 }
