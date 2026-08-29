@@ -1,0 +1,11 @@
+{
+  "type": "enum",
+  "namespace": "com.tutorial.shared.common.avro",
+  "name": "TransferFailureEnum",
+  "symbols": [
+    "WALLET_FROZEN",
+    "WALLET_NOT_FOUND",
+    "INSUFFICIENT_BALANCE",
+    "INTERNAL_ERROR"
+  ]
+}

@@ -1,7 +1,9 @@
 package com.tutorial.wallet.wallet;
 
 import com.tutorial.shared.common.avro.TransferResultEnum;
+import com.tutorial.shared.common.avro.TransferFailureEnum;
 import com.tutorial.shared.wallet.events.TransferDtoEvent;
+import com.tutorial.shared.wallet.events.TransferResultDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.sharedmodule.infra.avro.AvroPayloadSerializer;
 import com.tutorial.sharedmodule.infra.outbox.OutBox;
@@ -13,8 +15,6 @@ import jakarta.persistence.EntityNotFoundException;
 import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.dao.DataAccessException;
-import org.springframework.dao.TransientDataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -51,7 +51,9 @@ public class WalletService {
     this.avroSerializer = avroSerializer;
   }
 
-  private record WithdrawalWallets(Wallet userWallet, Wallet systemWallet) {}
+  private record TransferWallets(Wallet userWallet, Wallet systemWallet) {}
+
+  private record LockedWallets(Wallet userWallet, Wallet systemWallet) {}
 
   public WalletResponseDto createWallet(WalletRequestDto walletRequestDto, Long userId) {
     if (currencyApi.currencyExistsById(walletRequestDto.currencyId())) {
@@ -110,121 +112,158 @@ public class WalletService {
     return wallet.getWalletStatus() == WalletStatus.FROZEN;
   }
 
-  private WithdrawalWallets resolveAndValidate(Long currencyId, Long userId) {
+  private TransferWallets resolveAndValidate(Long currencyId, Long userId) {
+
     Wallet userWallet =
         walletRepository
             .findByCurrencyIdAndUserId(currencyId, userId)
             .orElseThrow(
                 () ->
                     new EntityNotFoundException(
-                        "Wallet With " + currencyId + "for user not found"));
+                        "Wallet not found for user=" + userId + ", currency=" + currencyId));
+
     Wallet systemWallet =
         walletRepository
             .findByCurrencyIdAndUserId(currencyId, 10203048859L)
             .orElseThrow(
-                () -> new EntityNotFoundException("System Wallet With This Currency Not Found"));
+                () ->
+                    new EntityNotFoundException(
+                        "System wallet not found for currency=" + currencyId));
+
     if (isWalletFrozen(userWallet)) {
-      throw new ForbiddenActionOnFreezeWalletException(
-          "Wallet Is Freeze And You Cant Do Any Action WithIt");
+      throw new ForbiddenActionOnFreezeWalletException("User wallet is frozen");
     }
+
     if (isWalletFrozen(systemWallet)) {
       throw new ForbiddenActionOnFreezeWalletException(
-          "The Withdraw On This Currency " + currencyId + "Is Freeze For Now");
+          "System wallet is frozen for currency = " + currencyId);
     }
-    return new WithdrawalWallets(userWallet, systemWallet);
+
+    return new TransferWallets(userWallet, systemWallet);
   }
 
-  public void withdraw(TransferDtoEvent withdrawDtoEvent) {
-    final WithdrawalWallets withdrawalWallets;
+  public void processTransfer(TransferDtoEvent event) {
+    if (outBoxRepository.existsByAggregateId(event.getIdempotencyKey())) {
+      System.out.println("Event With Uuid " + event.getIdempotencyKey() + " Already Processed ");
+      return;
+    }
+    TransferWallets wallets = null;
+    BigDecimal amount = parseAndValidateAmount(event.getAmount());
+
     try {
-      withdrawalWallets =
-          resolveAndValidate(withdrawDtoEvent.getCurrencyId(), withdrawDtoEvent.getUserId());
+      wallets = resolveAndValidate(event.getCurrencyId(), event.getUserId());
+
+      executeTransfer(event, wallets, amount);
+
     } catch (ForbiddenActionOnFreezeWalletException e) {
-      WithdrawResultDtoEvent WithdrawResultDtoEvent =
-          buildFailureEvent(withdrawDtoEvent, e.getMessage(), 0);
-      saveFailedOutboxEvent(
-          "withdraw", withdrawDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
-      throw e;
+      saveFailureOutBoxEvent(
+          event,
+          e.getMessage(),
+          TransferFailureEnum.WALLET_FROZEN,
+          wallets.userWallet.getId(),
+          wallets.systemWallet.getId());
+
     } catch (EntityNotFoundException e) {
-      WithdrawResultDtoEvent WithdrawResultDtoEvent =
-          buildFailureEvent(withdrawDtoEvent, e.getMessage(), 1);
-      saveFailedOutboxEvent(
-          "withdraw", withdrawDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
-      throw e;
-    }
-    BigDecimal bigDecimalAmount = new BigDecimal(withdrawDtoEvent.getAmount());
-    try {
-      transactionTemplate.execute(
-          status -> {
-            Wallet userWallet =
-                walletRepository
-                    .findByIdForUpdate(withdrawalWallets.userWallet.getId())
-                    .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
-            if (isWalletBalanceGoesToNegative(userWallet, bigDecimalAmount)) {
-              throw new InsufficientWalletBalanceException("Insufficient Wallet Balance");
-            }
-            Wallet systemWallet =
-                walletRepository
-                    .findByIdForUpdate(withdrawalWallets.systemWallet.getId())
-                    .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
-            userWallet.setBalance(userWallet.getBalance().subtract(bigDecimalAmount));
-            systemWallet.setBalance(systemWallet.getBalance().add(bigDecimalAmount));
-            WithdrawResultDtoEvent withdrawSuccessDtoEvent =
-                buildSuccessEvent(withdrawDtoEvent, userWallet.getId(), systemWallet.getId());
-            saveSuccessOutboxEvent(
-                "withdraw", withdrawSuccessDtoEvent.getIdempotencyKey(), withdrawSuccessDtoEvent);
-            return null;
-          });
-    } catch (EntityNotFoundException e) {
-      WithdrawResultDtoEvent WithdrawResultDtoEvent =
-          buildFailureEvent(withdrawDtoEvent, e.getMessage(), 3);
-      saveFailedOutboxEvent(
-          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
+      saveFailureOutBoxEvent(
+          event,
+          e.getMessage(),
+          TransferFailureEnum.WALLET_NOT_FOUND,
+          null,
+          null);
+
     } catch (InsufficientWalletBalanceException e) {
-      WithdrawResultDtoEvent WithdrawResultDtoEvent =
-          buildFailureEvent(withdrawDtoEvent, e.getMessage(), 4);
-      saveFailedOutboxEvent(
-          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
-    } catch (TransientDataAccessException e) {
-      System.out.println(
-          "Transient DB failure on withdraw, will retry: {}"
-              + withdrawDtoEvent.getIdempotencyKey()
-              + e.getMessage());
-      throw e;
-    } catch (DataAccessException e) {
-      WithdrawResultDtoEvent WithdrawResultDtoEvent =
-          buildFailureEvent(withdrawDtoEvent, "something wrong is happen", 5);
-      saveFailedOutboxEvent(
-          "withdraw", WithdrawResultDtoEvent.getIdempotencyKey(), WithdrawResultDtoEvent);
-      throw e;
+      saveFailureOutBoxEvent(
+          event,
+          e.getMessage(),
+          TransferFailureEnum.INSUFFICIENT_BALANCE,
+          wallets.userWallet.getId(),
+          wallets.systemWallet.getId());
     }
   }
 
-  private void saveFailedOutboxEvent(
-      String eventType, String aggregateId, WithdrawResultDtoEvent payload) {
-    byte[] payloadBytes = avroSerializer.serialize(walletTransferResponse, payload);
-    saveOutBox(eventType, aggregateId, payloadBytes, walletTransferResponse);
+  private void executeTransfer(TransferDtoEvent event, TransferWallets wallets, BigDecimal amount) {
+
+    transactionTemplate.executeWithoutResult(
+        status -> {
+          LockedWallets lockedWallets =
+              lockWallets(wallets.userWallet().getId(), wallets.systemWallet().getId());
+          switch (event.getTransferType()) {
+            case WITHDRAW ->
+                applyWithdraw(lockedWallets.userWallet, lockedWallets.systemWallet, amount);
+
+            case DEPOSIT ->
+                applyDeposit(lockedWallets.userWallet, lockedWallets.systemWallet, amount);
+          }
+
+          saveSuccessOutboxEvent(
+              event, lockedWallets.userWallet.getId(), lockedWallets.systemWallet.getId());
+        });
   }
 
-  private void saveSuccessOutboxEvent(
-      String eventType, String aggregateId, WithdrawResultDtoEvent payload) {
-    byte[] payloadBytes = avroSerializer.serialize(walletTransferResponse, payload);
-    saveOutBox(eventType, aggregateId, payloadBytes, walletTransferResponse);
+  private void applyWithdraw(Wallet userWallet, Wallet systemWallet, BigDecimal amount) {
+
+    if (isWalletBalanceGoesToNegative(userWallet, amount)) {
+      throw new InsufficientWalletBalanceException("Insufficient wallet balance");
+    }
+
+    userWallet.setBalance(userWallet.getBalance().subtract(amount));
+
+    systemWallet.setBalance(systemWallet.getBalance().add(amount));
   }
 
-  private void saveOutBox(String eventType, String aggregateId, byte[] payload, String topic) {
-    OutBox outboxEvent = new OutBox();
-    outboxEvent.setAggregateType(aggregateType);
-    outboxEvent.setAggregateId(aggregateId);
-    outboxEvent.setEventType(eventType);
-    outboxEvent.setTopic(topic);
-    outboxEvent.setPayload(payload);
-    outBoxRepository.save(outboxEvent);
+  private void applyDeposit(Wallet userWallet, Wallet systemWallet, BigDecimal amount) {
+
+    if (isWalletBalanceGoesToNegative(systemWallet, amount)) {
+      throw new InsufficientWalletBalanceException("System wallet has insufficient balance");
+    }
+
+    systemWallet.setBalance(systemWallet.getBalance().subtract(amount));
+
+    userWallet.setBalance(userWallet.getBalance().add(amount));
   }
 
-  private WithdrawResultDtoEvent buildSuccessEvent(
+  private BigDecimal parseAndValidateAmount(String amount) {
+
+    try {
+      BigDecimal value = new BigDecimal(amount);
+
+      if (value.signum() <= 0) {
+        throw new IllegalArgumentException("Amount must be greater than zero");
+      }
+
+      return value;
+
+    } catch (NumberFormatException e) {
+      throw new IllegalArgumentException("Invalid amount: " + amount, e);
+    }
+  }
+
+  private LockedWallets lockWallets(Long userWalletId, Long systemWalletId) {
+
+    Long firstId = Math.min(userWalletId, systemWalletId);
+    Long secondId = Math.max(userWalletId, systemWalletId);
+
+    Wallet first =
+        walletRepository
+            .findByIdForUpdate(firstId)
+            .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
+
+    Wallet second =
+        walletRepository
+            .findByIdForUpdate(secondId)
+            .orElseThrow(() -> new EntityNotFoundException("Wallet not found"));
+
+    Wallet userWallet = first.getId().equals(userWalletId) ? first : second;
+
+    Wallet systemWallet = first.getId().equals(systemWalletId) ? first : second;
+
+    return new LockedWallets(userWallet, systemWallet);
+  }
+
+  private TransferResultDtoEvent buildSuccessEvent(
       TransferDtoEvent event, Long userWalletId, Long systemWalletId) {
-    return WithdrawResultDtoEvent.newBuilder()
+
+    return TransferResultDtoEvent.newBuilder()
         .setUserId(event.getUserId())
         .setCurrencyId(event.getCurrencyId())
         .setAmount(event.getAmount())
@@ -233,20 +272,66 @@ public class WalletService {
         .setSystemWalletId(systemWalletId)
         .setStatus(TransferResultEnum.SUCCESS)
         .setTransferType(event.getTransferType())
+        .setFailedReason(null)
+        .setFailedEnum(null)
         .build();
   }
 
-  private WithdrawResultDtoEvent buildFailureEvent(
-      TransferDtoEvent event, String reason, int failedEnum) {
-    return WithdrawResultDtoEvent.newBuilder()
+  private TransferResultDtoEvent buildFailureEvent(
+      TransferDtoEvent event,
+      String reason,
+      TransferFailureEnum failureEnum,
+      Long userWalletId,
+      Long systemWalletId) {
+
+    return TransferResultDtoEvent.newBuilder()
         .setUserId(event.getUserId())
         .setCurrencyId(event.getCurrencyId())
-        .setIdempotencyKey(event.getIdempotencyKey())
         .setAmount(event.getAmount())
-        .setFailedReason(reason)
-        .setFailedEnum(failedEnum)
+        .setIdempotencyKey(event.getIdempotencyKey())
+        .setUserWalletId(userWalletId)
+        .setSystemWalletId(systemWalletId)
         .setStatus(TransferResultEnum.FAILED)
         .setTransferType(event.getTransferType())
+        .setFailedReason(reason)
+        .setFailedEnum(failureEnum)
         .build();
+  }
+
+  private void saveSuccessOutboxEvent(
+      TransferDtoEvent event, Long userWalletId, Long systemWalletId) {
+
+    TransferResultDtoEvent result = buildSuccessEvent(event, userWalletId, systemWalletId);
+
+    saveOutboxEvent("transfer", event.getIdempotencyKey(), result);
+  }
+
+  private void saveFailureOutBoxEvent(
+      TransferDtoEvent event,
+      String reason,
+      TransferFailureEnum failureEnum,
+      Long userWalletId,
+      Long systemWalletId) {
+
+    TransferResultDtoEvent result =
+        buildFailureEvent(event, reason, failureEnum, userWalletId, systemWalletId);
+
+    saveOutboxEvent("transfer", event.getIdempotencyKey(), result);
+  }
+
+  private void saveOutboxEvent(
+      String eventType, String aggregateId, TransferResultDtoEvent payload) {
+
+    byte[] payloadBytes = avroSerializer.serialize(walletTransferResponse, payload);
+
+    OutBox outbox = new OutBox();
+
+    outbox.setAggregateType(aggregateType);
+    outbox.setAggregateId(aggregateId);
+    outbox.setEventType(eventType);
+    outbox.setTopic(walletTransferResponse);
+    outbox.setPayload(payloadBytes);
+
+    outBoxRepository.save(outbox);
   }
 }
