@@ -103,10 +103,12 @@ public class TransactionService {
         new BigDecimal(event.getAmount()));
 
     transaction.setStatus(TransactionStatus.COMPLETED);
+    System.out.println("event with uuid: " + event.getIdempotencyKey() + "process successed");
   }
 
   private void failTransaction(WithdrawResultDtoEvent event, Transaction transaction) {
     transaction.setFailedReason(event.getFailedReason());
     transaction.setStatus(TransactionStatus.FAILED);
+    System.out.println("event with uuid: " + event.getIdempotencyKey() + "process successed");
   }
 }

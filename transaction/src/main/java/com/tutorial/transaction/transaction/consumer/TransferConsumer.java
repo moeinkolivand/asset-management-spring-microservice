@@ -7,10 +7,10 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class WithdrawConsumer {
+public class TransferConsumer {
     private final TransactionService transactionService;
 
-    public WithdrawConsumer(TransactionService transactionService) {
+    public TransferConsumer(TransactionService transactionService) {
         this.transactionService = transactionService;
     }
 

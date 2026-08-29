@@ -26,7 +26,7 @@ Content-Type: application/json
 %}
 
 ### Withdraw Request - Uses the dynamic token
-POST http://localhost:8080/api/transaction/withdraw
+POST http://localhost:8080/api/transaction/
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 

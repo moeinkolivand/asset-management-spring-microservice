@@ -19,7 +19,7 @@ public class TransactionController {
         this.transactionService = transactionService;
     }
 
-    @PostMapping("withdraw")
+    @PostMapping
     public ResponseEntity<String> withdraw(
             @RequestHeader("X-User-Id") Long userId,
             @Valid @RequestBody TransferDto transferDto
