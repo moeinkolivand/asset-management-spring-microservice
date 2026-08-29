@@ -8,7 +8,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "outbox_events")
+@Table(
+    name = "outbox_events",
+    uniqueConstraints = {
+      @UniqueConstraint(
+          name = "uq_aggregate_id",
+          columnNames = {"aggregate_id"})
+    })
 public class OutBox {
 
   @Id
@@ -32,6 +38,7 @@ public class OutBox {
   @JdbcTypeCode(SqlTypes.VARBINARY)
   @Column(name = "payload", nullable = false, columnDefinition = "BYTEA")
   private byte[] payload;
+
   public OutBox() {}
 
   public OutBox(
@@ -42,8 +49,7 @@ public class OutBox {
       byte[] payload,
       Instant createdAt,
       boolean published,
-      Instant publishedAt
-  ) {
+      Instant publishedAt) {
     this.aggregateType = aggregateType;
     this.aggregateId = aggregateId;
     this.eventType = eventType;
@@ -53,7 +59,6 @@ public class OutBox {
     this.publishedAt = publishedAt;
     this.payload = payload;
   }
-
 
   public UUID getId() {
     return id;
