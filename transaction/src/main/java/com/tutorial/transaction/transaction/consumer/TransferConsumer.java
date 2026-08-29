@@ -1,5 +1,6 @@
 package com.tutorial.transaction.transaction.consumer;
 
+import com.tutorial.shared.wallet.events.TransferResultDtoEvent;
 import com.tutorial.shared.wallet.events.WithdrawResultDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.transaction.transaction.TransactionService;
@@ -15,7 +16,7 @@ public class TransferConsumer {
     }
 
     @KafkaListener(topics = KafkaTopics.WALLET_TRANSFER_RESPONSE, groupId = "transaction-group")
-    private void handleWalletTransferResponseEvent(WithdrawResultDtoEvent dtoEvent) {
+    private void handleWalletTransferResponseEvent(TransferResultDtoEvent dtoEvent) {
         transactionService.processWalletTransferEvent(dtoEvent);
     }
 }

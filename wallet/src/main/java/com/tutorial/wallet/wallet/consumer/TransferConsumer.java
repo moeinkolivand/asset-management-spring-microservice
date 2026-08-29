@@ -8,16 +8,16 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 @Component
-public class WithdrawConsumer {
+public class TransferConsumer {
   private final WalletService walletService;
 
   @Autowired
-  public WithdrawConsumer(WalletService walletService) {
+  public TransferConsumer(WalletService walletService) {
     this.walletService = walletService;
   }
 
   @KafkaListener(topics = KafkaTopics.WALLET_TRANSFER, groupId = "wallet-group")
-  public void withdrawHandler(TransferDtoEvent withdrawDtoEvent) {
-    walletService.withdraw(withdrawDtoEvent);
+  public void withdrawHandler(TransferDtoEvent transferDtoEvent) {
+    walletService.processTransfer(transferDtoEvent);
   }
 }

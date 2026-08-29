@@ -1,7 +1,7 @@
 package com.tutorial.transaction.transaction;
 
 import com.tutorial.shared.wallet.events.TransferDtoEvent;
-import com.tutorial.shared.wallet.events.WithdrawResultDtoEvent;
+import com.tutorial.shared.wallet.events.TransferResultDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
 import com.tutorial.transaction.transaction.ledger.LedgerService;
 import jakarta.persistence.EntityNotFoundException;
@@ -79,7 +79,7 @@ public class TransactionService {
   }
 
   @Transactional
-  public void processWalletTransferEvent(WithdrawResultDtoEvent event) {
+  public void processWalletTransferEvent(TransferResultDtoEvent event) {
 
     Transaction transaction =
         getTransactionByIdempotencyKey(UUID.fromString(event.getIdempotencyKey()));
@@ -94,7 +94,7 @@ public class TransactionService {
     }
   }
 
-  private void completeTransaction(WithdrawResultDtoEvent event, Transaction transaction) {
+  private void completeTransaction(TransferResultDtoEvent event, Transaction transaction) {
     ledgerService.applyTransfer(
         transaction,
         event.getTransferType(),
@@ -106,9 +106,9 @@ public class TransactionService {
     System.out.println("event with uuid: " + event.getIdempotencyKey() + "process successed");
   }
 
-  private void failTransaction(WithdrawResultDtoEvent event, Transaction transaction) {
+  private void failTransaction(TransferResultDtoEvent event, Transaction transaction) {
     transaction.setFailedReason(event.getFailedReason());
     transaction.setStatus(TransactionStatus.FAILED);
-    System.out.println("event with uuid: " + event.getIdempotencyKey() + "process successed");
+    System.out.println("event with uuid: " + event.getIdempotencyKey() + "process failed");
   }
 }
