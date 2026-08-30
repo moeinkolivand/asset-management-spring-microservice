@@ -2,15 +2,12 @@ package com.tutorial.wallet.wallet;
 import com.tutorial.wallet.currency.Currency;
 import com.tutorial.wallet.currency.CurrencyApiImpl;
 import jakarta.transaction.Transactional;
-import org.springframework.boot.CommandLineRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 
 @Component
-@Order(2)
-public class SystemWalletSeeder implements CommandLineRunner {
+public class SystemWalletSeeder {
     private final WalletRepository walletRepository;
     private final CurrencyApiImpl currencyApi;
 
@@ -20,15 +17,14 @@ public class SystemWalletSeeder implements CommandLineRunner {
     }
 
 
-    @Override
     @Transactional
-    public void run(String... args) {
+    public void seed() {
 
         Long adminUserId = 10203048859L;
         String currencyName = "USDT";
         Currency usdtCurrency = currencyApi.getCurrencyByName(currencyName)
                 .orElseThrow(() -> new IllegalStateException(
-                        "USDT currency not found! Please ensure CurrencySeeder (@Order(2)) ran first."
+                        "USDT currency not found! Run --command=seed-currency first."
                 ));
 
         if (walletRepository.findByCurrencyIdAndUserId(usdtCurrency.getId(), adminUserId).isEmpty()) {
