@@ -34,7 +34,7 @@ public class Wallet {
     @Column(nullable = false, length = 100, unique = true)
     private String name;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance;
 
     @Column(nullable = false, updatable = false)

@@ -17,4 +17,6 @@ public final class KafkaTopics {
 
     public static final String DEPOSIT_FAILED =  "deposit-failed";
 
+    public static final String USER_REGISTERED = "user-registered-topic";
+
 }

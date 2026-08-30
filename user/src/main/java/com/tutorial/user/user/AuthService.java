@@ -49,17 +49,17 @@ public class AuthService {
         );
 
         userRepository.save(user);
+        publishUserRegisteredEvent(user);
+        String token = jwtService.generateToken(user);
+        return new AuthResponseDto(token, user.getPhoneNumber(), user.getUserRole().name());
+    }
+
+    public void publishUserRegisteredEvent(User user) {
         kafkaTemplate.send(
                 "user-registered-topic",
                 user.getId().toString(),
-                new UserRegisteredEvent(
-                        user.getId(),
-                        user.getPhoneNumber(),
-                        user.getUserRole().name()
-                )
+                new UserRegisteredEvent(user.getId(), user.getPhoneNumber(), user.getUserRole().name())
         );
-        String token = jwtService.generateToken(user);
-        return new AuthResponseDto(token, user.getPhoneNumber(), user.getUserRole().name());
     }
 
     public LoginResponseDto login(LoginRequestDto request) {

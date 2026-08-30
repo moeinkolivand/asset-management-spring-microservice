@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -27,6 +28,7 @@ import java.util.List;
 public class WalletService {
 
   private final WalletRepository walletRepository;
+  private final SystemAccountRepository systemAccountRepository;
   private final CurrencyApiImpl currencyApi;
   private final TransactionTemplate transactionTemplate;
   private final OutBoxRepository outBoxRepository;
@@ -40,11 +42,13 @@ public class WalletService {
   @Autowired
   public WalletService(
       WalletRepository walletRepository,
+      SystemAccountRepository systemAccountRepository,
       CurrencyApiImpl currencyApi,
       TransactionTemplate transactionTemplate,
       OutBoxRepository outBoxRepository,
       AvroPayloadSerializer avroSerializer) {
     this.walletRepository = walletRepository;
+    this.systemAccountRepository = systemAccountRepository;
     this.currencyApi = currencyApi;
     this.transactionTemplate = transactionTemplate;
     this.outBoxRepository = outBoxRepository;
@@ -100,8 +104,27 @@ public class WalletService {
   }
 
   public void createDefaultWallet(Long userId) {
+    Long currencyId = currencyApi.getCurrencyByName("USDT")
+        .orElseThrow(() -> new EntityNotFoundException("USDT currency not found"))
+        .getId();
     walletRepository.save(
-        new Wallet(String.format("USDT-%d", userId), BigDecimal.ZERO, userId, 1L));
+        new Wallet(String.format("USDT-%d", userId), BigDecimal.ZERO, userId, currencyId));
+  }
+
+  @Transactional
+  public void createSystemWallet(Long userId) {
+    SystemAccount systemAccount = systemAccountRepository.findByUserId(userId)
+        .orElseGet(() -> systemAccountRepository.save(new SystemAccount(userId)));
+    Long currencyId = currencyApi.getCurrencyByName("USDT")
+        .orElseThrow(() -> new EntityNotFoundException("USDT currency not found"))
+        .getId();
+
+    if (walletRepository.findByUserIdAndCurrencyId(systemAccount.getUserId(), currencyId).isEmpty()) {
+      Wallet wallet = new Wallet("SYSTEM_USDT_WALLET", BigDecimal.valueOf(1_000_000.00),
+          systemAccount.getUserId(), currencyId);
+      wallet.setWalletStatus(WalletStatus.ACTIVE);
+      walletRepository.save(wallet);
+    }
   }
 
   private boolean isWalletBalanceGoesToNegative(Wallet wallet, BigDecimal amount) {
@@ -122,9 +145,12 @@ public class WalletService {
                     new EntityNotFoundException(
                         "Wallet not found for user=" + userId + ", currency=" + currencyId));
 
+    Long systemUserId = systemAccountRepository.findFirstByOrderByIdAsc()
+            .map(SystemAccount::getUserId)
+            .orElseThrow(() -> new EntityNotFoundException("System account not found"));
     Wallet systemWallet =
         walletRepository
-            .findByCurrencyIdAndUserId(currencyId, 10203048859L)
+            .findByCurrencyIdAndUserId(currencyId, systemUserId)
             .orElseThrow(
                 () ->
                     new EntityNotFoundException(
