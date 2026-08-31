@@ -8,6 +8,19 @@ on:
       - main
 
 jobs:
+  debug-why-mvn-not-found:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug environment
+        run: |
+          echo "USER=$(whoami)"
+          echo "HOME=$HOME"
+          echo "PATH=$PATH"
+          echo "PWD=$PWD"
+          command -v mvn || true
+          ls -l /usr/bin/mvn
+          /usr/bin/mvn -version
+
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
