@@ -1,0 +1,17 @@
+name : hello world
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  greet:
+    run-on: ubuntu-latest
+    steps:
+      - name: Say Hello
+        run: echo "hello from gitea actions!"
+
+      - name: Show some info
+        run : |
+          echo "Running on: $(uname -a)"
+          echo "Current Date: $(date)"
