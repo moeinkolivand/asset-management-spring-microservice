@@ -9,7 +9,7 @@ on:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       eureka: ${{ steps.filter.outputs.eureka }}
       gateway: ${{ steps.filter.outputs.gateway }}
@@ -36,7 +36,7 @@ jobs:
   eureka:
     needs: detect-changes
     if: needs.detect-changes.outputs.eureka == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -50,9 +50,7 @@ jobs:
   gateway:
     needs: detect-changes
     if: needs.detect-changes.outputs.gateway == 'true'
-    runs-on: ubuntu-latest
-    container:
-      image: eclipse-temurin:17-jdk
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -67,9 +65,7 @@ jobs:
   user:
     needs: detect-changes
     if: needs.detect-changes.outputs.user == 'true'
-    runs-on: ubuntu-latest
-    container:
-      image: eclipse-temurin:17-jdk
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -82,9 +78,7 @@ jobs:
   transaction:
     needs: detect-changes
     if: needs.detect-changes.outputs.transaction == 'true'
-    runs-on: ubuntu-latest
-    container:
-      image: eclipse-temurin:17-jdk
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
@@ -97,9 +91,7 @@ jobs:
   wallet:
     needs: detect-changes
     if: needs.detect-changes.outputs.wallet == 'true'
-    runs-on: ubuntu-latest
-    container:
-      image: eclipse-temurin:17-jdk
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
       - uses: actions/cache@v4
