@@ -1,0 +1,111 @@
+name: Monorepo CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      eureka: ${{ steps.filter.outputs.eureka }}
+      gateway: ${{ steps.filter.outputs.gateway }}
+      user: ${{ steps.filter.outputs.user }}
+      transaction: ${{ steps.filter.outputs.transaction }}
+      wallet: ${{ steps.filter.outputs.wallet }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            eureka:
+              - 'eureka/**'
+            gateway:
+              - 'gateway/**'
+            user:
+              - 'user/**' 
+            transaction:
+              - 'transaction/**'
+            wallet:
+              - 'wallet/**'
+
+  eureka:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.eureka == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('eureka/pom.xml') }}
+          restore-keys: maven-
+      - working-directory: ./eureka
+        run: mvn test
+
+  gateway:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.gateway == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('gateway/pom.xml') }}
+          restore-keys: maven-
+      - working-directory: ./gateway
+        run: mvn test
+
+
+  user:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.user == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('user/pom.xml') }}
+          restore-keys: maven-
+      - working-directory: ./user
+        run: mvn test
+  transaction:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.transaction == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('transaction/pom.xml') }}
+          restore-keys: maven-
+      - working-directory: ./transaction
+        run: mvn test
+  wallet:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.wallet == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: eclipse-temurin:17-jdk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ hashFiles('wallet/pom.xml') }}
+          restore-keys: maven-
+      - working-directory: ./wallet
+        run: mvn test
+
