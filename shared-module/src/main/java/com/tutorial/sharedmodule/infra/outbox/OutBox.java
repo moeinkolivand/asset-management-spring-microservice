@@ -27,6 +27,9 @@ public class OutBox {
   @Column private String eventType;
   @Column private String topic;
 
+  @Column(nullable = false)
+  private String partitionKey;
+
   @Column(insertable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -46,6 +49,7 @@ public class OutBox {
       String aggregateId,
       String eventType,
       String topic,
+      String partitionKey,
       byte[] payload,
       Instant createdAt,
       boolean published,
@@ -54,6 +58,7 @@ public class OutBox {
     this.aggregateId = aggregateId;
     this.eventType = eventType;
     this.topic = topic;
+    this.partitionKey = partitionKey;
     this.createdAt = createdAt;
     this.published = published;
     this.publishedAt = publishedAt;
@@ -114,6 +119,14 @@ public class OutBox {
 
   public void setCreatedAt(Instant createdAt) {
     this.createdAt = createdAt;
+  }
+
+  public String getPartitionKey() {
+    return partitionKey;
+  }
+
+  public void setPartitionKey(String partitionKey) {
+    this.partitionKey = partitionKey;
   }
 
   public boolean isPublished() {

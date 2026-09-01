@@ -357,7 +357,7 @@ public class WalletService {
     outbox.setEventType(eventType);
     outbox.setTopic(walletTransferResponse);
     outbox.setPayload(payloadBytes);
-
+    outbox.setPartitionKey(Long.toString(payload.getUserId()));
     outBoxRepository.save(outbox);
   }
 }

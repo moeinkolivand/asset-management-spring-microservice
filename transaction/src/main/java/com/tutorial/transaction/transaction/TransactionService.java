@@ -1,8 +1,12 @@
 package com.tutorial.transaction.transaction;
 
+
 import com.tutorial.shared.wallet.events.TransferDtoEvent;
 import com.tutorial.shared.wallet.events.TransferResultDtoEvent;
 import com.tutorial.sharedmodule.infra.KafkaTopics;
+import com.tutorial.sharedmodule.infra.avro.AvroPayloadSerializer;
+import com.tutorial.sharedmodule.infra.outbox.OutBox;
+import com.tutorial.sharedmodule.infra.outbox.OutBoxRepository;
 import com.tutorial.transaction.transaction.ledger.LedgerService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
@@ -22,18 +26,23 @@ public class TransactionService {
   private final LedgerService ledgerService;
   private final KafkaTemplate<String, TransferDtoEvent> kafkaTemplate;
   private final TransferEventMapper transferEventMapper;
+  private final AvroPayloadSerializer avroPayloadSerializer;
+  private final OutBoxRepository outBoxRepository;
 
   public TransactionService(
-      TransactionRepository transactionRepository,
-      LedgerService ledgerService,
-      KafkaTemplate<String, TransferDtoEvent> kafkaTemplate,
-      TransferEventMapper transferEventMapper) {
+          TransactionRepository transactionRepository,
+          LedgerService ledgerService,
+          KafkaTemplate<String, TransferDtoEvent> kafkaTemplate,
+          TransferEventMapper transferEventMapper, AvroPayloadSerializer avroPayloadSerializer, OutBoxRepository outBoxRepository) {
     this.transactionRepository = transactionRepository;
     this.ledgerService = ledgerService;
     this.kafkaTemplate = kafkaTemplate;
     this.transferEventMapper = transferEventMapper;
+      this.avroPayloadSerializer = avroPayloadSerializer;
+    this.outBoxRepository = outBoxRepository;
   }
 
+  @Transactional
   public void transfer(TransferDto transferDto, Long userId) {
     createTransfer(
         transferDto,
@@ -50,7 +59,16 @@ public class TransactionService {
             userId, transferType, TransactionStatus.PENDING, transferDto.idempotencyKey(), null);
     transactionRepository.save(transaction);
     TransferDtoEvent event = transferEventMapper.toEvent(transferDto, userId);
-    kafkaTemplate.send(KafkaTopics.WALLET_TRANSFER, userId.toString(), event);
+
+    OutBox outBox = new OutBox();
+    outBox.setAggregateType("transaction");
+    outBox.setAggregateId(transferDto.idempotencyKey().toString());
+    outBox.setEventType("transaction_transfer");
+    outBox.setTopic(KafkaTopics.WALLET_TRANSFER);
+    outBox.setPayload(avroPayloadSerializer.serialize(KafkaTopics.WALLET_TRANSFER, event));
+    outBox.setPartitionKey(userId.toString());
+    outBoxRepository.save(outBox);
+//    kafkaTemplate.send(KafkaTopics.WALLET_TRANSFER, userId.toString(), event);
   }
 
   private void validateIdempotency(UUID idempotencyKey) {

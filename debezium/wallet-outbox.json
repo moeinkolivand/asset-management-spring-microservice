@@ -19,7 +19,7 @@
     "transforms.outbox.route.by.field": "topic",
     "transforms.outbox.route.topic.replacement": "${routedByValue}",
     "transforms.outbox.table.field.event.id": "id",
-    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.key": "partition_key",
     "transforms.outbox.table.field.event.payload": "payload",
     "transforms.outbox.table.fields.additional.placement": "event_type:header:eventType",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",

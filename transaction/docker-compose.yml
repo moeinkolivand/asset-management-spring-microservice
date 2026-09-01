@@ -9,8 +9,23 @@ services:
       POSTGRES_DB: demo_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
     ports:
       - "5435:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - messaging
+
+
+networks:
+  messaging:
+    name: shared-messaging
