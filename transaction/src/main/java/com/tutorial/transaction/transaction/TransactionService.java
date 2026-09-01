@@ -59,16 +59,11 @@ public class TransactionService {
             userId, transferType, TransactionStatus.PENDING, transferDto.idempotencyKey(), null);
     transactionRepository.save(transaction);
     TransferDtoEvent event = transferEventMapper.toEvent(transferDto, userId);
-
-    OutBox outBox = new OutBox();
-    outBox.setAggregateType("transaction");
-    outBox.setAggregateId(transferDto.idempotencyKey().toString());
-    outBox.setEventType("transaction_transfer");
-    outBox.setTopic(KafkaTopics.WALLET_TRANSFER);
-    outBox.setPayload(avroPayloadSerializer.serialize(KafkaTopics.WALLET_TRANSFER, event));
-    outBox.setPartitionKey(userId.toString());
-    outBoxRepository.save(outBox);
-//    kafkaTemplate.send(KafkaTopics.WALLET_TRANSFER, userId.toString(), event);
+    saveOutBox(
+            transferDto.idempotencyKey().toString(),
+            userId,
+            event
+    );
   }
 
   private void validateIdempotency(UUID idempotencyKey) {
@@ -128,4 +123,16 @@ public class TransactionService {
     transaction.setStatus(TransactionStatus.FAILED);
     System.out.println("event with uuid: " + event.getIdempotencyKey() + "process failed");
   }
+
+  private void saveOutBox(String idempotencyKey, Long userId, TransferDtoEvent event) {
+    OutBox outBox = new OutBox();
+    outBox.setAggregateType("transaction");
+    outBox.setAggregateId(idempotencyKey);
+    outBox.setEventType("transaction_transfer");
+    outBox.setTopic(KafkaTopics.WALLET_TRANSFER);
+    outBox.setPayload(avroPayloadSerializer.serialize(KafkaTopics.WALLET_TRANSFER, event));
+    outBox.setPartitionKey(userId.toString());
+    outBoxRepository.save(outBox);
+  }
+
 }
