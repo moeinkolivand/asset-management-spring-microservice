@@ -50,8 +50,7 @@ public class TransactionService {
             userId, transferType, TransactionStatus.PENDING, transferDto.idempotencyKey(), null);
     transactionRepository.save(transaction);
     TransferDtoEvent event = transferEventMapper.toEvent(transferDto, userId);
-
-    kafkaTemplate.send(KafkaTopics.WALLET_TRANSFER, transferDto.idempotencyKey().toString(), event);
+    kafkaTemplate.send(KafkaTopics.WALLET_TRANSFER, userId.toString(), event);
   }
 
   private void validateIdempotency(UUID idempotencyKey) {
