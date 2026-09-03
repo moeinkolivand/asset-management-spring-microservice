@@ -1,82 +1,83 @@
 # Asset Management Spring Microservice
 
-A comprehensive Spring Boot microservices application for managing digital assets, users, wallets, and transactions. This project demonstrates modern microservices architecture patterns with service discovery, API gateway routing, event streaming, and distributed tracing.
+A Spring Boot microservices application for managing digital assets, users, wallets, and transactions. Demonstrates modern microservices architecture patterns with service discovery, API gateway routing, event streaming via Kafka/Debezium CDC, and a full observability stack.
 
 ## 🏗️ Architecture Overview
 
-This is a **Spring Cloud microservices** architecture with the following key components:
+This is a **Spring Cloud microservices** monorepo with the following key components:
 
 ### Microservices Modules
 
-| Module | Purpose | Port |
-|--------|---------|------|
-| **gateway** | API Gateway with Spring Cloud Gateway & Security | 8080 |
+| Module | Purpose | Default Port |
+|--------|---------|---------|
+| **gateway** | API Gateway with Spring Cloud Gateway & JWT validation | 9099 |
 | **eureka** | Service Registry & Discovery | 8761 |
-| **user** | User management service | 8081 |
-| **wallet** | Wallet/asset management service | 8082 |
-| **transaction** | Transaction processing service | 8083 |
-| **shared-contracts** | Shared data contracts and DTOs | - |
-| **shared-module** | Shared utilities and base infrastructure | - |
-| **debezium** | Change Data Capture (CDC) for event streaming | 8083 |
+| **user** | User management, authentication, and registration | 8082 |
+| **wallet** | Wallet/asset management with Outbox CDC | 8081 |
+| **transaction** | Transaction and ledger processing | 8088 |
+| **shared-contracts** | Shared Avro schemas and event DTOs | — |
+| **shared-module** | Shared utilities: OutBox entity, KafkaTopics, Avro serializer | — |
+| **debezium** | Debezium Connect for Outbox CDC | 8083 |
 
-### Shared Infrastructure
+### Shared Infrastructure Modules
 
-- **shared-contracts**: Contains common Avro schemas and event contracts
-- **shared-module**: Shared utilities, configurations, and base classes
+- **shared-contracts**: Common Avro schemas (`UserRegisteredEvent`, `TransferDtoEvent`, `TransferResultDtoEvent`, `WithdrawResultDtoEvent`) and enum types
+- **shared-module**: `OutBox` JPA entity, `OutBoxRepository`, `KafkaTopics` constants, `AvroPayloadSerializer`, and `SharedInfraAutoConfiguration`
 
 ## 🛠️ Technology Stack
 
 ### Core Framework
-- **Spring Boot 4.1.0** - Application framework
-- **Spring Cloud 2025.1.2** - Microservices orchestration
-- **Java 17** - Programming language
+- **Spring Boot 4.1.0**
+- **Spring Cloud 2025.1.2**
+- **Java 17**
 
 ### API & Communication
-- **Spring Cloud Gateway** - API Gateway with routing and filtering
-- **Spring Cloud Netflix Eureka** - Service discovery
-- **Spring Web MVC** - REST API development
-- **Spring Webflux** - Reactive programming support
+- **Spring Cloud Gateway** (WebFlux-based) — API gateway with JWT auth filter
+- **Spring Cloud Netflix Eureka** — Service discovery
+- **Spring Web MVC** — REST APIs (user, wallet, transaction)
+- **Spring WebFlux** — Reactive gateway
 
 ### Data Management
-- **Spring Data JPA** - ORM and database access
-- **PostgreSQL** - Primary relational database
-- **Spring Data Redis** - Caching layer
-- **Redis** - In-memory data store
+- **Spring Data JPA / PostgreSQL** — Primary relational database (one DB per service)
+- **Spring Data Redis / Redis 7** — Caching (wallet service)
 
 ### Event Streaming & CDC
-- **Apache Kafka 4.0.0** - Message broker
-- **Confluent Schema Registry 8.0.0** - Schema management
-- **Debezium** - Change Data Capture
-- **Apache Avro 1.12.1** - Serialization format
-- **Confluent Kafka Avro Serializer 8.3.0** - Avro serialization
+- **Apache Kafka 4.0.0** (KRaft mode, no ZooKeeper)
+- **Confluent Schema Registry 8.0.0** (port `8010` externally → `8081` internally)
+- **Debezium PostgreSQL Connector** — Outbox CDC for wallet and transaction services
+- **Apache Avro 1.12.1** — Event serialization format
+- **Confluent Kafka Avro Serializer 8.3.0**
 
 ### Security
-- **Spring Security** - Authentication and authorization
-- **JWT (JJWT 0.12.6)** - Token-based authentication
+- **Spring Security** — Endpoint protection
+- **JWT (JJWT 0.12.6)** — Token-based authentication; validated at the gateway
 
 ### Observability
-- **Spring Boot Actuator** - Health checks and metrics
-- **Spring Boot OpenTelemetry** - Distributed tracing
-- **Micrometer** - Application metrics
-- **Jaeger** - Distributed tracing backend
-- **Prometheus** - Metrics collection
-- **Grafana** - Metrics visualization
-- **Loki** - Log aggregation
-- **OpenTelemetry Collector** - Telemetry collection
+- **Spring Boot Actuator** — Health checks and metrics
+- **Spring Boot OpenTelemetry** — Distributed tracing
+- **Micrometer + datasource-micrometer** — DB query tracing
+- **OpenTelemetry Collector** — Telemetry fan-out (traces → Jaeger, metrics → Prometheus)
+- **Jaeger** — Distributed tracing backend
+- **Prometheus** — Metrics collection (scrapes OTEL Collector on port `8889`)
+- **Grafana** — Metrics visualization
 
-### Testing
-- **Spring Boot Test** - Unit and integration testing
-- **Spring Security Test** - Security testing
-- **Reactor Test** - Reactive testing
+### Logging
+- **Filebeat** — Ships structured (ECS format) JSON log files to Logstash
+- **Logstash** — Parses and forwards logs to Elasticsearch
+- **Elasticsearch 9.5.2** — Log storage and search
+- **Kibana 9.5.2** — Log visualization and querying
+- **Elastic APM Server 9.5.2** — Application performance monitoring
+
+### CI/CD
+- **Gitea Actions** — Monorepo CI with path-based change detection (only rebuilds affected modules)
 
 ## 📋 Prerequisites
 
 - **Java 17** or higher
-- **Maven 3.8+** - Build tool
-- **Docker & Docker Compose** - For running infrastructure services
-- **PostgreSQL 14+** (optional if using Docker Compose)
-- **Redis** (optional if using Docker Compose)
-- **Kafka 4.0.0+** (optional if using Docker Compose)
+- **Maven 3.8+**
+- **Docker & Docker Compose**
+
+Each service has its own PostgreSQL database (started from individual `docker-compose.yml` files or via the per-service DB setup). The root `docker-compose.yml` starts the shared infrastructure (Kafka, Schema Registry, Debezium Connect, observability stack).
 
 ## 🚀 Quick Start
 
@@ -87,244 +88,350 @@ git clone <repository-url>
 cd asset-management-spring-microservice
 ```
 
-### 2. Start Infrastructure Services
+### 2. Start Per-Service Databases
 
-Start all required services using Docker Compose:
+Each service that needs a database has its own `docker-compose.yml`:
+
+```bash
+# User service DB (PostgreSQL on host port 5433)
+docker-compose -f user/docker-compose.yml up -d
+
+# Wallet service DB (PostgreSQL on host port 5434) + Redis (port 6379)
+docker-compose -f wallet/docker-compose.yml up -d
+
+# Transaction service DB (PostgreSQL on host port 5435)
+docker-compose -f transaction/docker-compose.yml up -d
+```
+
+> ⚠️ The wallet and transaction databases require `wal_level=logical` for Debezium CDC — this is already set in their `docker-compose.yml` files.
+
+### 3. Start Shared Infrastructure
 
 ```bash
 docker-compose up -d
 ```
 
-This will start:
-- Kafka brokers
-- Schema Registry
-- Debezium Connect
-- Kafka UI (http://localhost:9095)
-- OpenTelemetry Collector
-- Jaeger (http://localhost:16686)
-- Prometheus (http://localhost:9090)
-- Grafana (http://localhost:3000)
-- Loki (http://localhost:3100)
+This starts:
 
-### 3. Build the Project
+| Service | URL |
+|---------|-----|
+| Kafka (KRaft) | `localhost:9092` |
+| Schema Registry | `http://localhost:8010` |
+| Debezium Connect | `http://localhost:8083` |
+| Kafka UI | `http://localhost:9095` |
+| OpenTelemetry Collector | `localhost:4317` (gRPC) / `localhost:4318` (HTTP) |
+| Jaeger | `http://localhost:16686` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3000` |
+| Elasticsearch | `http://localhost:9200` |
+| Logstash (Beats) | `localhost:5044` |
+| Kibana | `http://localhost:5601` |
+| APM Server | `http://localhost:8200` |
+
+### 4. Build the Project
 
 ```bash
-mvn clean install
+mvn clean install -DskipTests
 ```
 
-### 4. Run the Microservices
+### 5. Seed Initial Data
 
-Start each microservice in order:
+After building, run the seeders to populate currencies and the admin user:
 
-#### Service Registry (Eureka)
 ```bash
-cd eureka
-mvn spring-boot:run
+./seed_database.sh
 ```
 
-#### API Gateway
+This runs:
+- Wallet service in seed mode → seeds currency data
+- User service in seed mode → creates the admin user (phone: `09183385896`, password: `123456`)
+
+### 6. Register Debezium Connectors
+
 ```bash
-cd gateway
-mvn spring-boot:run
+./register_connector.sh wallet-outbox.json
+./register_connector.sh transaction-outbox.json
 ```
 
-#### User Service
+### 7. Run the Microservices
+
+Start services in this order:
+
 ```bash
-cd user
-mvn spring-boot:run
+# 1. Service Registry
+cd eureka && mvn spring-boot:run
+
+# 2. API Gateway
+cd gateway && mvn spring-boot:run
+
+# 3. Domain services (order doesn't matter after Eureka is up)
+cd user && mvn spring-boot:run
+cd wallet && mvn spring-boot:run
+cd transaction && mvn spring-boot:run
 ```
 
-#### Wallet Service
-```bash
-cd wallet
-mvn spring-boot:run
-```
+### 8. Verify
 
-#### Transaction Service
-```bash
-cd transaction
-mvn spring-boot:run
-```
-
-### 5. Verify Services are Running
-
-Check Eureka Dashboard: http://localhost:8761
-
-All services should be registered and showing as UP.
+- Eureka Dashboard: `http://localhost:8761` — all services should appear as UP
+- Kafka UI: `http://localhost:9095` — inspect topics and consumer groups
 
 ## 📡 Service Communication
 
 ### API Gateway Routing
-The API Gateway routes requests to microservices:
-- `/user/**` → User Service
-- `/wallet/**` → Wallet Service
-- `/transaction/**` → Transaction Service
 
-### Event-Driven Architecture
-Services communicate asynchronously through Kafka topics:
-- **wallet-outbox** - Wallet events (CDC topic)
-- Other event topics for wallet and transaction events
+All external traffic goes through the gateway at port **9099**:
 
-### Change Data Capture (CDC)
-Debezium captures database changes and streams them to Kafka, enabling:
-- Event sourcing
-- Real-time synchronization
-- Audit logging
+| Path | Upstream Service |
+|------|-----------------|
+| `/api/auth/**` | User Service (`USER-SERVICE`) |
+| `/api/wallets/**` | Wallet Service (`WALLET-SERVICE`) |
+| `/api/transaction/**` | Transaction Service (`TRANSACTION-SERVICE`) |
+
+### Event-Driven Architecture (Kafka Topics)
+
+Services communicate asynchronously over Kafka. Topics defined in `KafkaTopics`:
+
+| Topic | Publisher | Consumer |
+|-------|-----------|----------|
+| `user-registered-topic` | User (via CDC Outbox) | Wallet |
+| `wallet-transfer` | Transaction | Wallet |
+| `wallet-transfer-response` | Wallet (via CDC Outbox) | Transaction |
+| `withdraw-failed` | Wallet | Transaction |
+| `wallet-deposit` | Transaction | Wallet |
+| `deposit-success` | Wallet | Transaction |
+| `deposit-failed` | Wallet | Transaction |
+
+### Outbox Pattern & CDC
+
+Both `wallet` and `transaction` services implement the **Transactional Outbox Pattern**:
+
+1. On a business operation, the service writes an `OutBox` record in the same DB transaction
+2. Debezium watches the `outbox_events` table via PostgreSQL logical replication (`pgoutput`)
+3. The `EventRouter` transform routes each event to its target Kafka topic (stored in the `topic` column)
+4. Avro-serialized payloads are forwarded byte-for-byte with `ByteArrayConverter`
+
+Connector configs: `debezium/wallet-outbox.json`, `debezium/transaction-outbox.json`
 
 ## 🔍 Observability
 
 ### Distributed Tracing
-- Access Jaeger UI: http://localhost:16686
-- Traces are automatically collected via OpenTelemetry
-- Each microservice sends telemetry to the OTEL Collector
+- **Jaeger UI**: `http://localhost:16686`
+- Each service exports OTLP traces (HTTP) to the OTEL Collector → Jaeger
+- DB queries are traced via `datasource-micrometer`
+- Kafka listener and template observation is enabled per service
 
-### Metrics & Monitoring
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000 (Anonymous access enabled)
-- Metrics are collected from each service's `/actuator/metrics` endpoint
+### Metrics
+- **Prometheus**: `http://localhost:9090`
+- Prometheus scrapes the OTEL Collector's Prometheus exporter on port `8889`
+- **Grafana**: `http://localhost:3000` (anonymous access with Admin role)
 
-### Logging
-- **Loki**: http://localhost:3100
-- Logs can be queried through Grafana
+### Logging (ELK Stack)
+- Each service writes structured **ECS-format** JSON logs to `./logs/application.log`
+- **Filebeat** ships log files from `./*/logs/*.log` to **Logstash** on port `5044`
+- **Logstash** parses the JSON and writes to **Elasticsearch** (daily indices: `application-logs-YYYY.MM.dd`)
+- **Kibana**: `http://localhost:5601` — query and visualize logs
 
 ### Health Checks
-Each service exposes health endpoints:
-- `http://<service>:port/actuator/health`
-- `http://<service>:port/actuator/health/liveness`
-- `http://<service>:port/actuator/health/readiness`
+
+Each service exposes:
+```
+http://<host>:<port>/actuator/health
+http://<host>:<port>/actuator/health/liveness
+http://<host>:<port>/actuator/health/readiness
+```
 
 ## 📁 Project Structure
 
 ```
 .
-├── eureka/                 # Service Registry
-├── gateway/                # API Gateway
-├── user/                   # User Management Service
-├── wallet/                 # Wallet Service
-├── transaction/            # Transaction Service
-├── shared-contracts/       # Shared Avro schemas and DTOs
-├── shared-module/          # Shared utilities and configurations
-├── debezium/              # Debezium CDC configuration
-├── docker-compose.yml      # Infrastructure services
-├── pom.xml                 # Parent Maven POM
-├── prometheus.yml          # Prometheus configuration
-├── otel-collector-config.yaml  # OpenTelemetry configuration
-└── README.md              # This file
+├── eureka/                  # Service Registry
+├── gateway/                 # API Gateway (JWT validation, routing)
+├── user/                    # User Management Service
+│   └── docker-compose.yml   # User PostgreSQL DB (host port 5433)
+├── wallet/                  # Wallet Service
+│   └── docker-compose.yml   # Wallet PostgreSQL DB (port 5434) + Redis (port 6379)
+├── transaction/             # Transaction & Ledger Service
+│   └── docker-compose.yml   # Transaction PostgreSQL DB (host port 5435)
+├── shared-contracts/        # Avro schemas (.avsc) and generated event classes
+├── shared-module/           # OutBox entity, KafkaTopics, AvroPayloadSerializer
+├── debezium/                # Debezium connector configs
+│   ├── wallet-outbox.json
+│   └── transaction-outbox.json
+├── filebeat/
+│   └── filebeat.yml         # Ships ./*/logs/*.log to Logstash
+├── logstash/
+│   └── pipeline/logstash.conf
+├── .gitea/workflows/        # Gitea Actions CI (per-module path filtering)
+├── docker-compose.yml       # Shared infrastructure (Kafka, Observability, ELK)
+├── pom.xml                  # Parent Maven POM
+├── prometheus.yml           # Scrapes OTEL Collector on :8889
+├── otel-collector-config.yaml
+├── seed_database.sh         # Seeds currencies and admin user
+├── register_connector.sh    # Registers a Debezium connector via REST
+├── create_new_module.sh     # Scaffolds a new service module from the user template
+└── .http                    # IntelliJ HTTP scratch file (register, login, transfer)
 ```
 
 ## 🔧 Configuration
 
-### Service Configuration
-Each microservice has its own `application.properties` file in `src/main/resources/`:
-- Database connection strings
-- Kafka broker addresses
-- Eureka server URL
-- Redis configuration
+### Per-Service Application Properties
+
+| Service | Config file | Key overrides |
+|---------|------------|---------------|
+| gateway | `application.yaml` | Routes, JWT secret, OTEL |
+| user | `application.properties` | DB port 5433, Kafka producer |
+| wallet | `application.properties` | DB port 5434, Redis, Kafka consumer/producer |
+| transaction | `application.properties` | DB port 5435, Kafka consumer/producer (idempotent) |
+| eureka | `application.properties` | Standalone (no client registration) |
+
+All sensitive values support environment variable overrides (e.g. `DB_URL`, `JWT_SECRET`, `KAFKA_BOOTSTRAP_SERVERS`, `SCHEMA_REGISTRY_URL`, `OTLP_ENDPOINT`).
 
 ### Database Setup
-PostgreSQL schemas are created automatically on service startup (JPA `spring.jpa.hibernate.ddl-auto=update`).
+PostgreSQL schemas are created automatically on startup (`spring.jpa.hibernate.ddl-auto=update`).
 
-### Kafka Configuration
-- Bootstrap servers: `kafka:29092` (internal) or `localhost:9092` (external)
-- Schema Registry: `http://schema-registry:8081`
+### Kafka & Schema Registry
+- Kafka bootstrap: `localhost:9092` (external) / `kafka:29092` (internal Docker)
+- Schema Registry: `http://localhost:8010` (external) / `http://schema-registry:8081` (internal)
 
 ## 🧪 Testing
 
-Run all tests:
 ```bash
+# All modules
 mvn clean test
-```
 
-Run tests for a specific module:
-```bash
+# Single module
 cd <module-name>
 mvn clean test
 ```
+
+CI runs per-module tests on push/PR to `main`, triggered only when files in that module change.
 
 ## 📦 Building & Deployment
 
 ### Build JAR Files
 ```bash
-mvn clean package
+mvn clean package -DskipTests
 ```
 
-JAR files are created in each module's `target/` directory.
+### Docker Build
 
-### Docker Build (Optional)
-Each microservice can be containerized:
+Each service has a multi-stage Dockerfile that builds only the required modules:
+
 ```bash
-cd <module-name>
-docker build -t <image-name> .
+# Build from project root (context must be root for shared deps)
+docker build -f wallet/Dockerfile -t wallet-service .
+docker build -f user/Dockerfile -t user-service .
+docker build -f transaction/Dockerfile -t transaction-service .
+docker build -f gateway/Dockerfile -t gateway-service .
+docker build -f eureka/Dockerfile -t eureka-service .
 ```
 
-## 🤝 Contributing
+## 🤝 Adding a New Module
 
-When adding new modules to the microservices:
+Use the provided scaffold script:
 
-1. Use the provided `create_new_module.sh` script:
 ```bash
 ./create_new_module.sh <module-name>
 ```
 
-2. Add the module to the parent `pom.xml` modules section
+This copies the `user` module structure, updates `pom.xml` artifact IDs, and registers the module in the root `pom.xml`. Then:
 
-3. Configure service properties in `src/main/resources/application.properties`
+1. Update `src/main/resources/application.properties` (port, DB URL, etc.)
+2. Add a Eureka client dependency if service discovery is needed
+3. Add a Dockerfile following the same multi-stage pattern
+4. Add a Gitea Actions job in `.gitea/workflows/buid-test.yaml`
 
-4. Register the service in Eureka by including spring-cloud-starter-netflix-eureka-client dependency
+## 📝 API Quick Reference
 
-## 📝 API Documentation
+All requests go through the gateway at `http://localhost:9099`:
 
-API endpoints are available through the API Gateway:
-- **Gateway URL**: http://localhost:8080
-- **User Service**: http://localhost:8080/user
-- **Wallet Service**: http://localhost:8080/wallet
-- **Transaction Service**: http://localhost:8080/transaction
+```
+POST /api/auth/register   — Register a new user
+POST /api/auth/login      — Login, returns JWT
+POST /api/transaction/    — Submit a transfer (requires Bearer token)
+GET  /api/transaction/    — List transactions (requires Bearer token)
+```
 
-Each service implements REST endpoints documented in their respective controller classes.
+See `.http` for ready-to-run IntelliJ HTTP Client requests including token extraction.
 
 ## 🛡️ Security
 
-### Authentication
-- JWT-based authentication
-- Token validation in API Gateway
-- Role-based access control (RBAC)
-
-### Authorization
-- Spring Security for endpoint protection
-- Method-level security annotations
-
-## 📊 Monitoring Dashboards
-
-### Kafka UI
-- **URL**: http://localhost:9095
-- Monitor topics, brokers, and consumer groups
-
-### Jaeger Traces
-- **URL**: http://localhost:16686
-- View distributed traces across services
-
-### Grafana Dashboards
-- **URL**: http://localhost:3000
-- Query Prometheus metrics and Loki logs
-- Default credentials: admin/admin (if not using anonymous)
+- **JWT authentication** validated at the gateway by `JwtAuthenticationGatewayFilter`
+- JWT secret and expiry configurable via `jwt.secret` / `jwt.access-expiration`
+- Role-based access control with `ADMIN` and `USER` roles (set at registration/seeding)
+- Public endpoints: `/api/auth/register`, `/api/auth/login`
 
 ## 🐛 Troubleshooting
 
-### Services not registering in Eureka
-- Check Eureka server is running (http://localhost:8761)
-- Verify `eureka.client.service-url.defaultZone` in service application.properties
+**Services not registering in Eureka**
+- Confirm Eureka is running: `http://localhost:8761`
+- Check `eureka.client.service-url.defaultZone` in each service's properties
 
-### Kafka connection issues
-- Ensure Docker Compose services are running: `docker-compose ps`
-- Check Kafka is accessible: `docker exec kafka-server kafka-broker-api-versions.sh --bootstrap-server localhost:9092`
+**Kafka/Schema Registry connection issues**
+```bash
+docker-compose ps
+docker exec kafka-server kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+```
 
-### Database connection errors
-- Verify PostgreSQL credentials in application.properties
-- Check database is created and accessible
+**Debezium connector not streaming**
+- Check connector status: `curl http://localhost:8083/connectors/wallet-outbox-connector/status`
+- Verify PostgreSQL has `wal_level=logical` enabled
+- Re-register if needed: `./register_connector.sh wallet-outbox.json`
 
-### No traces in Jaeger
-- Verify OTEL Collector is running: `docker-compose ps`
-- Check service OpenTelemetry configuration
+**No traces in Jaeger**
+- Confirm OTEL Collector is running: `docker-compose ps`
+- Verify `management.opentelemetry.tracing.export.otlp.endpoint` in application properties
+
+**No logs in Kibana**
+- Confirm Filebeat, Logstash, Elasticsearch are running: `docker-compose ps`
+- Check Filebeat picks up logs: `docker logs filebeat`
+- Create an index pattern in Kibana matching `application-logs-*`
+
+## 🔗 Useful Commands
+
+### Maven
+```bash
+mvn clean install -DskipTests        # Build without tests
+mvn clean install                    # Build with tests
+cd <module-name> && mvn spring-boot:run
+```
+
+### Docker Compose
+```bash
+docker-compose up -d                 # Start shared infra
+docker-compose down                  # Stop shared infra
+docker-compose logs -f <service>     # Tail logs
+docker-compose restart <service>     # Restart a service
+docker-compose ps                    # Check running containers
+```
+
+### Kafka
+```bash
+# List topics
+docker exec kafka-server kafka-topics.sh --bootstrap-server localhost:9092 --list
+
+# Create a topic
+docker exec kafka-server kafka-topics.sh --create \
+  --bootstrap-server localhost:9092 \
+  --topic <topic-name> --partitions 4 --replication-factor 1
+
+# Consume from beginning
+docker exec kafka-server kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic <topic-name> --from-beginning
+```
+
+### Debezium
+```bash
+# Register a connector
+./register_connector.sh wallet-outbox.json
+
+# Check connector status
+curl http://localhost:8083/connectors/wallet-outbox-connector/status | jq .
+
+# List all connectors
+curl http://localhost:8083/connectors | jq .
+```
 
 ## 📄 License
 
@@ -340,55 +447,7 @@ Add your license information here.
 - [Spring Cloud Documentation](https://spring.io/projects/spring-cloud)
 - [Apache Kafka Documentation](https://kafka.apache.org/documentation/)
 - [Debezium Documentation](https://debezium.io/documentation/)
+- [Debezium Outbox Event Router](https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html)
 - [OpenTelemetry Documentation](https://opentelemetry.io/docs/)
 - [Jaeger Documentation](https://www.jaegertracing.io/docs/)
-
-## 🔗 Useful Commands
-
-### Maven Commands
-```bash
-# Build without tests
-mvn clean install -DskipTests
-
-# Run specific module
-cd <module-name> && mvn spring-boot:run
-
-# Generate project info
-mvn project-info-reports:dependencies
-```
-
-### Docker Compose Commands
-```bash
-# Start all services
-docker-compose up -d
-
-# Stop all services
-docker-compose down
-
-# View logs
-docker-compose logs -f <service-name>
-
-# Restart a service
-docker-compose restart <service-name>
-```
-
-### Kafka Commands
-```bash
-# List topics
-docker exec kafka-server kafka-topics.sh --bootstrap-server localhost:9092 --list
-
-# Create a topic
-docker exec kafka-server kafka-topics.sh --create --bootstrap-server localhost:9092 --topic <topic-name> --partitions 4 --replication-factor 1
-
-# Consume messages
-docker exec kafka-server kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic <topic-name> --from-beginning
-```
-
-## 🎯 Next Steps
-
-1. Review service-specific README files (if available)
-2. Configure environment-specific properties
-3. Set up CI/CD pipeline
-4. Configure production-grade security
-5. Set up log aggregation and alerting
-6. Deploy to your target environment
+- [Elastic Stack Documentation](https://www.elastic.co/guide/index.html)
