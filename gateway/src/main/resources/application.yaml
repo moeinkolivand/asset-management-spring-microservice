@@ -37,8 +37,11 @@ management:
           transport: http
 
 
-#  management.opentelemetry.tracing.export.otlp.enabled=true
-#  management.opentelemetry.tracing.export.otlp.endpoint=http://localhost:4318
 server:
   port: 9099
-#  management.opentelemetry.tracing.export.otlp.transport=http
+logging:
+  structured:
+    format:
+      file: ecs
+  file:
+    name: ./gateway/logs/application.log
