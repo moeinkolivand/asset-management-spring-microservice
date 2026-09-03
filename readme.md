@@ -84,7 +84,7 @@ Each service has its own PostgreSQL database (started from individual `docker-co
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/moeinkolivand/asset-management-spring-microservice
 cd asset-management-spring-microservice
 ```
 
@@ -423,23 +423,12 @@ docker exec kafka-server kafka-console-consumer.sh \
 
 ### Debezium
 ```bash
-# Register a connector
 ./register_connector.sh wallet-outbox.json
 
-# Check connector status
 curl http://localhost:8083/connectors/wallet-outbox-connector/status | jq .
 
-# List all connectors
 curl http://localhost:8083/connectors | jq .
 ```
-
-## 📄 License
-
-Add your license information here.
-
-## 👥 Authors
-
-- Project Team
 
 ## 📚 References
 
