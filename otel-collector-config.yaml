@@ -10,21 +10,14 @@ processors:
   batch: {}
 
 exporters:
-  # Traces -> Jaeger
   otlp/jaeger:
     endpoint: jaeger:4317
     tls:
       insecure: true
 
-  # Metrics -> exposed here, Prometheus scrapes this endpoint
   prometheus:
     endpoint: 0.0.0.0:8889
 
-  # Logs -> Loki
-  otlphttp/loki:
-    endpoint: http://loki:3100/otlp
-
-  # Handy for debugging: prints everything received to collector's own console
   debug:
     verbosity: detailed
 
@@ -39,8 +32,3 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [prometheus, debug]
-
-    logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [otlphttp/loki, debug]

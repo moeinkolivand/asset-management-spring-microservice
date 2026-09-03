@@ -127,7 +127,6 @@ services:
       - "8889:8889"
     depends_on:
       - jaeger
-      - loki
     networks:
       - observability
 
@@ -151,14 +150,6 @@ services:
     networks:
       - observability
 
-  loki:
-    image: grafana/loki:latest
-    container_name: loki
-    ports:
-      - "3100:3100"
-    networks:
-      - observability
-
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -170,13 +161,95 @@ services:
     depends_on:
       - prometheus
       - jaeger
-      - loki
     networks:
       - observability
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.2
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - observability
+    restart: unless-stopped
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:9.5.2
+    container_name: logstash
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5044:5044"
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+    networks:
+      - observability
+    restart: unless-stopped
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.2
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - observability
+    restart: unless-stopped
+
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:9.5.2
+    container_name: apm-server
+    depends_on:
+      - elasticsearch
+      - kibana
+    ports:
+      - "8200:8200"
+    command:
+      - "-e"
+      - "-E"
+      - "apm-server.host=0.0.0.0:8200"
+      - "-E"
+      - "output.elasticsearch.hosts=[\"http://elasticsearch:9200\"]"
+      - "-E"
+      - "apm-server.kibana.enabled=true"
+      - "-E"
+      - "apm-server.kibana.host=http://kibana:5601"
+    networks:
+      - observability
+    restart: unless-stopped
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:9.5.2
+    container_name: filebeat
+    user: root
+    command: >
+      filebeat
+      -e
+      --strict.perms=false
+      -c /usr/share/filebeat/filebeat.yml
+    volumes:
+      - ./filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - ./:/var/log/spring:ro
+      - filebeat_data:/usr/share/filebeat/data
+    depends_on:
+      - logstash
+    networks:
+      - observability
+    restart: unless-stopped
 
 volumes:
   kafka_data:
+  elasticsearch_data:
+  filebeat_data:
 
 networks:
   messaging:
